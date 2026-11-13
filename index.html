@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="車メンテ">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>車メンテ管理</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    :root{
+      --bg:#f2f2f7;--surface:#fff;--surface2:#f2f2f7;--text:#000;--text2:#6e6e73;
+      --accent:#007aff;--danger:#ff3b30;--warning:#ff9500;--success:#34c759;
+      --border:#c6c6c8;--shadow:rgba(0,0,0,.1);
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+    }
+    @media(prefers-color-scheme:dark){
+      :root{--bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--text:#fff;--text2:#98989f;--border:#38383a;--shadow:rgba(0,0,0,.5)}
+    }
+    body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden}
+
+    /* ── Header ── */
+    .app-header{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border)}
+    .header-top{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + var(--safe-top)) 16px 4px}
+    .header-top h1{font-size:17px;font-weight:700;letter-spacing:-.3px}
+    .btn-icon{width:40px;height:40px;border:none;background:none;color:var(--accent);font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:50%;line-height:1}
+    .btn-icon:active{background:var(--surface2)}
+
+    /* ── Tabs ── */
+    .car-tabs{display:flex;overflow-x:auto;scrollbar-width:none;padding:4px 12px 10px;gap:8px}
+    .car-tabs::-webkit-scrollbar{display:none}
+    .car-tab{flex-shrink:0;padding:7px 18px;border-radius:20px;border:none;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;position:relative;white-space:nowrap;font-family:inherit}
+    .car-tab.active{background:var(--accent);color:#fff}
+    .car-tab .badge{position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+    /* ── Main ── */
+    #main-content{padding-top:var(--header-h,110px);padding-bottom:calc(16px + var(--safe-bottom))}
+
+    /* ── Car info ── */
+    .car-info-card{margin:12px 16px 0;background:var(--surface);border-radius:12px;padding:16px}
+    .car-info-card h2{font-size:19px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+    .info-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+    .info-row:last-child{border-bottom:none}
+    .info-label{font-size:14px;color:var(--text2)}
+    .info-value{font-size:14px;font-weight:500}
+
+    /* ── Section header ── */
+    .section-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 6px}
+    .section-header h3{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+
+    /* ── Item list ── */
+    .items-list{margin:0 16px;background:var(--surface);border-radius:12px;overflow:hidden}
+    .item-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;gap:12px;user-select:none}
+    .item-row:last-child{border-bottom:none}
+    .item-row:active{background:var(--surface2)}
+    .status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+    .s-ok{background:var(--success)}.s-warning{background:var(--warning)}.s-danger{background:var(--danger)}.s-none{background:var(--border)}
+    .item-info{flex:1;min-width:0}
+    .item-name{font-size:16px;font-weight:500}
+    .item-next{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .item-chevron{color:var(--border);font-size:20px;line-height:1}
+
+    /* ── Empty / No-car ── */
+    .empty-state,.no-car{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 32px;text-align:center;color:var(--text2)}
+    .no-car{min-height:60dvh}
+    .emo{font-size:56px;margin-bottom:16px}
+    .no-car h2{font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px}
+    .no-car p,.empty-state p{font-size:14px;line-height:1.6}
+    .no-car p{margin-bottom:28px}
+
+    /* ── Notification banner ── */
+    .notif-banner{margin:12px 16px 0;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+    .notif-banner-text{flex:1;font-size:13px;line-height:1.4}
+    .notif-banner-btn{font-size:13px;font-weight:600;color:var(--accent);border:none;background:none;cursor:pointer;padding:4px 0;white-space:nowrap;font-family:inherit}
+
+    /* ── Buttons ── */
+    .btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;text-align:center;font-family:inherit}
+    .btn:active{opacity:.8}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-secondary{background:var(--surface2);color:var(--accent)}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn+.btn{margin-top:8px}
+
+    /* ── Modal ── */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end;opacity:0;transition:opacity .25s;pointer-events:none}
+    .modal-overlay.open{opacity:1;pointer-events:auto}
+    .modal-sheet{width:100%;background:var(--surface);border-radius:20px 20px 0 0;max-height:90dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);padding-bottom:var(--safe-bottom)}
+    .modal-overlay.open .modal-sheet{transform:translateY(0)}
+    .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 4px}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 14px}
+    .modal-title{font-size:17px;font-weight:600;text-align:center;flex:1}
+    .modal-btn{font-size:16px;border:none;background:none;cursor:pointer;padding:6px 4px;font-family:inherit;min-width:60px}
+    .modal-btn.cancel{color:var(--text2);text-align:left}
+    .modal-btn.save{color:var(--accent);font-weight:600;text-align:right}
+    .modal-body{padding:0 16px 16px}
+
+    /* ── Form ── */
+    .form-group{margin-bottom:14px}
+    .form-label{display:block;font-size:13px;color:var(--text2);margin-bottom:5px;font-weight:500}
+    .form-control{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;font-size:16px;color:var(--text);outline:none;font-family:inherit;-webkit-appearance:none}
+    .form-control:focus{border-color:var(--accent)}
+    textarea.form-control{resize:none;min-height:72px}
+    select.form-control{padding-right:36px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .tpl-check{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);border-radius:10px;cursor:pointer;font-size:14px;line-height:1.4}
+
+    /* ── Detail content ── */
+    .detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
+    .detail-row:last-child{border-bottom:none}
+    .detail-label{font-size:14px;color:var(--text2);flex-shrink:0;padding-right:12px}
+    .detail-value{font-size:14px;font-weight:500;text-align:right}
+    .status-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600}
+    .sb-ok{background:rgba(52,199,89,.15);color:var(--success)}
+    .sb-warning{background:rgba(255,149,0,.15);color:var(--warning)}
+    .sb-danger{background:rgba(255,59,48,.15);color:var(--danger)}
+    .sb-none{background:var(--surface2);color:var(--text2)}
+    .modal-section-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px}
+    .record-item{padding:10px 0;border-bottom:1px solid var(--border)}
+    .record-item:last-child{border-bottom:none}
+    .record-date{font-size:14px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+    .record-info{font-size:12px;color:var(--text2);margin-top:2px}
+    .record-delete{font-size:12px;color:var(--danger);border:none;background:none;cursor:pointer;font-family:inherit;padding:0}
+
+    .divider{height:1px;background:var(--border);margin:16px 0}
+  </style>
+</head>
+<body>
+
+<header class="app-header" id="app-header">
+  <div class="header-top">
+    <h1>🚗 車メンテ管理</h1>
+    <button class="btn-icon" onclick="showCarModal(null)" aria-label="車を追加" title="車を追加">＋</button>
+  </div>
+  <div class="car-tabs" id="car-tabs"></div>
+</header>
+
+<main id="main-content"></main>
+
+<!-- ===== 車モーダル ===== -->
+<div class="modal-overlay" id="modal-car" onclick="onOverlayClick(event,'modal-car')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-car')">キャンセル</button>
+      <span class="modal-title" id="modal-car-title">車を追加</span>
+      <button class="modal-btn save" onclick="saveCarModal()">保存</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mc-id">
+      <div class="form-group">
+        <label class="form-label" for="mc-name">車名 <span style="color:var(--danger)">*</span></label>
+        <input class="form-control" id="mc-name" type="text" placeholder="例: トヨタ プリウス" maxlength="50">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mc-date">購入時期</label>
+        <input class="form-control" id="mc-date" type="month">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mc-mileage">現在の総走行距離（km）</label>
+        <input class="form-control" id="mc-mileage" type="number" placeholder="0" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="mc-engine">エンジン種別</label>
+          <select class="form-control" id="mc-engine" onchange="updateTemplateVis()">
+            <option value="">未設定</option>
+            <option value="ガソリン">ガソリン</option>
+            <option value="ハイブリッド">ハイブリッド</option>
+            <option value="ディーゼル">ディーゼル</option>
+            <option value="EV">EV（電気）</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="mc-mission">ミッション種別</label>
+          <select class="form-control" id="mc-mission" onchange="updateTemplateVis()">
+            <option value="">未設定</option>
+            <option value="AT">AT（オートマ）</option>
+            <option value="CVT">CVT</option>
+            <option value="MT">MT（マニュアル）</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+      </div>
+      <div id="mc-template-wrap" style="display:none; margin-bottom:14px">
+        <label class="tpl-check">
+          <input type="checkbox" id="mc-use-template" checked style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0">
+          <span>テンプレートからメンテナンス項目を<br>自動追加する</span>
+        </label>
+      </div>
+      <div id="mc-delete-wrap" style="display:none; margin-top:24px">
+        <div class="divider" style="margin:0 0 16px"></div>
+        <button class="btn btn-danger" onclick="deleteCarConfirm()">この車を削除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== メンテナンス項目モーダル ===== -->
+<div class="modal-overlay" id="modal-item" onclick="onOverlayClick(event,'modal-item')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-item')">キャンセル</button>
+      <span class="modal-title" id="modal-item-title">項目を追加</span>
+      <button class="modal-btn save" onclick="saveItemModal()">保存</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mi-carid">
+      <input type="hidden" id="mi-id">
+      <div class="form-group">
+        <label class="form-label" for="mi-name">項目名 <span style="color:var(--danger)">*</span></label>
+        <input class="form-control" id="mi-name" type="text" placeholder="例: エンジンオイル" maxlength="50">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="mi-months">交換間隔（ヶ月）</label>
+          <input class="form-control" id="mi-months" type="number" placeholder="なし" min="1" max="120">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="mi-km">交換間隔（km）</label>
+          <input class="form-control" id="mi-km" type="number" placeholder="なし" min="1" step="100">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mi-notes">備考（任意）</label>
+        <textarea class="form-control" id="mi-notes" placeholder="使用するオイルの種類など"></textarea>
+      </div>
+      <div id="mi-delete-wrap" style="display:none; margin-top:8px">
+        <div class="divider" style="margin:0 0 16px"></div>
+        <button class="btn btn-danger" onclick="deleteItemConfirm()">この項目を削除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 詳細モーダル ===== -->
+<div class="modal-overlay" id="modal-detail" onclick="onOverlayClick(event,'modal-detail')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-detail')">閉じる</button>
+      <span class="modal-title" id="modal-detail-title"></span>
+      <button class="modal-btn save" style="color:var(--text2)" onclick="showItemModalForEdit()">編集</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-detail-content"></div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="showRecordModal()">🔧 メンテナンスを記録する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 記録モーダル ===== -->
+<div class="modal-overlay" id="modal-record" onclick="onOverlayClick(event,'modal-record')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-record')">キャンセル</button>
+      <span class="modal-title">メンテナンスを記録</span>
+      <button class="modal-btn save" onclick="saveRecordModal()">保存</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="mr-date">実施日 <span style="color:var(--danger)">*</span></label>
+        <input class="form-control" id="mr-date" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mr-mileage">実施時の走行距離（km） <span style="color:var(--danger)">*</span></label>
+        <input class="form-control" id="mr-mileage" type="number" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mr-notes">メモ（任意）</label>
+        <textarea class="form-control" id="mr-notes" placeholder="使用した部品・オイルなど"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════
+//  データ管理
+// ═══════════════════════════════════════════════
+const DB_KEY = 'carMaintenanceV2';
+
+// ── メンテナンステンプレート ──
+const TEMPLATES = {
+  engine: {
+    'ガソリン': [
+      { name: 'エンジンオイル',      intervalMonths: 6,  intervalKm: 5000,  notes: 'メーカー指定粘度のオイルを使用' },
+      { name: 'オイルエレメント',    intervalMonths: 12, intervalKm: 10000, notes: '' },
+      { name: 'エアフィルター',      intervalMonths: 24, intervalKm: 30000, notes: '' },
+      { name: 'スパークプラグ',      intervalMonths: 24, intervalKm: 30000, notes: '白金/イリジウムプラグは長寿命' },
+      { name: 'ブレーキフルード',    intervalMonths: 24, intervalKm: null,  notes: '' },
+      { name: 'クーラント（冷却水）',intervalMonths: 48, intervalKm: null,  notes: '' },
+      { name: 'バッテリー',          intervalMonths: 48, intervalKm: null,  notes: '電圧チェックも定期的に' },
+      { name: 'エアコンフィルター',  intervalMonths: 12, intervalKm: null,  notes: '' },
+    ],
+    'ハイブリッド': [
+      { name: 'エンジンオイル',          intervalMonths: 12, intervalKm: 10000, notes: 'ハイブリッド指定オイル推奨' },
+      { name: 'オイルエレメント',        intervalMonths: 12, intervalKm: 10000, notes: '' },
+      { name: 'エアフィルター',          intervalMonths: 24, intervalKm: 30000, notes: '' },
+      { name: 'ブレーキフルード',        intervalMonths: 24, intervalKm: null,  notes: '回生ブレーキ中心のため消耗は少なめ' },
+      { name: 'クーラント（冷却水）',    intervalMonths: 48, intervalKm: null,  notes: '' },
+      { name: '補機バッテリー（12V）',   intervalMonths: 36, intervalKm: null,  notes: 'ハイブリッド車は早めの点検推奨' },
+      { name: '駆動用バッテリー点検',    intervalMonths: 12, intervalKm: null,  notes: '' },
+      { name: 'エアコンフィルター',      intervalMonths: 12, intervalKm: null,  notes: '' },
+    ],
+    'ディーゼル': [
+      { name: 'エンジンオイル',                        intervalMonths: 6,  intervalKm: 5000,  notes: 'ディーゼル指定オイル（DL-1等）を使用' },
+      { name: 'オイルエレメント',                      intervalMonths: 6,  intervalKm: 10000, notes: '' },
+      { name: '燃料フィルター',                        intervalMonths: 24, intervalKm: 40000, notes: '' },
+      { name: 'エアフィルター',                        intervalMonths: 24, intervalKm: 30000, notes: '' },
+      { name: 'ブレーキフルード',                      intervalMonths: 24, intervalKm: null,  notes: '' },
+      { name: 'クーラント（冷却水）',                  intervalMonths: 48, intervalKm: null,  notes: '' },
+      { name: 'バッテリー',                            intervalMonths: 36, intervalKm: null,  notes: 'ディーゼルは始動負荷が大きいため早めの交換推奨' },
+      { name: 'エアコンフィルター',                    intervalMonths: 12, intervalKm: null,  notes: '' },
+      { name: 'DPF清浄（粒子状物質除去フィルター）',   intervalMonths: 12, intervalKm: 20000, notes: '強制再生が必要な場合はディーラーへ' },
+    ],
+    'EV': [
+      { name: 'ブレーキフルード',      intervalMonths: 36, intervalKm: null,  notes: '回生ブレーキ中心のため消耗は少なめ' },
+      { name: 'バッテリー冷却水',      intervalMonths: 48, intervalKm: null,  notes: 'EV専用の冷却水を使用' },
+      { name: '補機バッテリー（12V）', intervalMonths: 36, intervalKm: null,  notes: '' },
+      { name: '駆動用バッテリー点検',  intervalMonths: 12, intervalKm: null,  notes: '残容量・劣化チェック' },
+      { name: 'エアコンフィルター',    intervalMonths: 12, intervalKm: null,  notes: '' },
+      { name: 'タイヤローテーション',  intervalMonths:  6, intervalKm: 10000, notes: 'EVは車重が重いためタイヤ消耗が速い' },
+    ],
+    'その他': [
+      { name: 'エンジンオイル',      intervalMonths: 6,  intervalKm: 5000, notes: '' },
+      { name: 'ブレーキフルード',    intervalMonths: 24, intervalKm: null, notes: '' },
+      { name: 'クーラント（冷却水）',intervalMonths: 48, intervalKm: null, notes: '' },
+      { name: 'エアコンフィルター',  intervalMonths: 12, intervalKm: null, notes: '' },
+    ],
+  },
+  mission: {
+    'AT':   [{ name: 'ATF（オートマオイル）', intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正ATFを推奨' }],
+    'CVT':  [{ name: 'CVTフルード',           intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正CVTフルードを推奨' }],
+    'MT':   [{ name: 'ミッションオイル',       intervalMonths: 36, intervalKm: 30000, notes: '' }],
+    'その他': [],
+  },
+};
+let state = { cars: [] };
+let activeCarId = null;
+let modalCtx = {}; // {carId, itemId}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) { const d = JSON.parse(raw); state = { cars: d.cars || [] }; }
+  } catch(e) { state = { cars: [] }; }
+}
+
+function save() {
+  localStorage.setItem(DB_KEY, JSON.stringify(state));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+// ── Car CRUD ──
+function addCar(name, purchaseDate, totalMileage, engineType, missionType) {
+  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', items: [] };
+  state.cars.push(car);
+  save();
+  return car;
+}
+
+function updateCar(id, patch) {
+  const car = state.cars.find(c => c.id === id);
+  if (!car) return;
+  if (patch.name !== undefined) car.name = patch.name;
+  if (patch.purchaseDate !== undefined) car.purchaseDate = patch.purchaseDate;
+  if (patch.totalMileage !== undefined) car.totalMileage = +patch.totalMileage || 0;
+  if (patch.engineType  !== undefined) car.engineType  = patch.engineType;
+  if (patch.missionType !== undefined) car.missionType = patch.missionType;
+  save();
+}
+
+function deleteCar(id) {
+  state.cars = state.cars.filter(c => c.id !== id);
+  if (activeCarId === id) activeCarId = state.cars[0]?.id ?? null;
+  save();
+}
+
+// ── Item CRUD ──
+function addItem(carId, data) {
+  const car = state.cars.find(c => c.id === carId);
+  if (!car) return;
+  const item = {
+    id: uid(), name: data.name,
+    intervalMonths: data.intervalMonths ? +data.intervalMonths : null,
+    intervalKm:     data.intervalKm     ? +data.intervalKm     : null,
+    notes: data.notes || '', records: []
+  };
+  car.items.push(item);
+  save();
+  return item;
+}
+
+function updateItem(carId, itemId, data) {
+  const car = state.cars.find(c => c.id === carId);
+  const item = car?.items.find(i => i.id === itemId);
+  if (!item) return;
+  item.name = data.name;
+  item.intervalMonths = data.intervalMonths ? +data.intervalMonths : null;
+  item.intervalKm     = data.intervalKm     ? +data.intervalKm     : null;
+  item.notes = data.notes || '';
+  save();
+}
+
+function deleteItem(carId, itemId) {
+  const car = state.cars.find(c => c.id === carId);
+  if (car) { car.items = car.items.filter(i => i.id !== itemId); save(); }
+}
+
+// ── Record CRUD ──
+function addRecord(carId, itemId, date, mileage, notes) {
+  const car = state.cars.find(c => c.id === carId);
+  const item = car?.items.find(i => i.id === itemId);
+  if (!item) return;
+  const rec = { id: uid(), date, mileage: +mileage, notes: notes||'' };
+  item.records.push(rec);
+  if (+mileage > car.totalMileage) car.totalMileage = +mileage;
+  save();
+  return rec;
+}
+
+function deleteRecord(carId, itemId, recordId) {
+  const car = state.cars.find(c => c.id === carId);
+  const item = car?.items.find(i => i.id === itemId);
+  if (item) { item.records = item.records.filter(r => r.id !== recordId); save(); }
+}
+
+// ═══════════════════════════════════════════════
+//  ステータス計算
+// ═══════════════════════════════════════════════
+function getStatus(item, totalMileage) {
+  if (!item.records || item.records.length === 0) {
+    return { code: 'none', nextDate: null, nextMileage: null };
+  }
+  const last = [...item.records].sort((a,b) => new Date(b.date)-new Date(a.date))[0];
+  const today = new Date(); today.setHours(0,0,0,0);
+  let nextDate = null, nextMileage = null, overdue = false, soon = false;
+
+  if (item.intervalMonths) {
+    nextDate = new Date(last.date);
+    nextDate.setMonth(nextDate.getMonth() + item.intervalMonths);
+    const diff = Math.ceil((nextDate - today) / 86400000);
+    if (diff < 0) overdue = true;
+    else if (diff <= 30) soon = true;
+  }
+  if (item.intervalKm) {
+    nextMileage = last.mileage + item.intervalKm;
+    const rem = nextMileage - totalMileage;
+    if (rem <= 0) overdue = true;
+    else if (rem <= 500) soon = true;
+  }
+  return {
+    code: overdue ? 'danger' : soon ? 'warning' : 'ok',
+    nextDate, nextMileage,
+    lastDate: new Date(last.date), lastMileage: last.mileage
+  };
+}
+
+function fmtDate(d) {
+  if (!d) return '-';
+  const v = d instanceof Date ? d : new Date(d);
+  if (isNaN(v)) return '-';
+  return `${v.getFullYear()}/${String(v.getMonth()+1).padStart(2,'0')}/${String(v.getDate()).padStart(2,'0')}`;
+}
+function fmtDateInput(d) {
+  if (!d) return '';
+  const v = d instanceof Date ? d : new Date(d);
+  return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+}
+function todayStr() { return fmtDateInput(new Date()); }
+
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function nextText(s, item) {
+  if (s.code === 'none') return item.records?.length ? '間隔未設定' : 'メンテナンス未記録';
+  const parts = [];
+  if (s.nextDate) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.ceil((s.nextDate - today) / 86400000);
+    if (diff < 0) parts.push(`次回: ${fmtDate(s.nextDate)}（${Math.abs(diff)}日超過⚠）`);
+    else if (diff === 0) parts.push('次回: 今日');
+    else parts.push(`次回: ${fmtDate(s.nextDate)}（あと${diff}日）`);
+  }
+  if (s.nextMileage) parts.push(`次回: ${s.nextMileage.toLocaleString()}km`);
+  return parts.join(' / ') || '-';
+}
+
+// ═══════════════════════════════════════════════
+//  レンダリング
+// ═══════════════════════════════════════════════
+function render() {
+  adjustHeaderHeight();
+  renderTabs();
+  renderMain();
+}
+
+function adjustHeaderHeight() {
+  requestAnimationFrame(() => {
+    const h = document.getElementById('app-header')?.offsetHeight || 110;
+    document.getElementById('main-content').style.paddingTop = (h + 8) + 'px';
+  });
+}
+
+function renderTabs() {
+  const el = document.getElementById('car-tabs');
+  el.innerHTML = '';
+  state.cars.forEach(car => {
+    const dueCount = car.items.filter(i => {
+      const s = getStatus(i, car.totalMileage);
+      return s.code === 'danger' || s.code === 'warning';
+    }).length;
+    const tab = document.createElement('button');
+    tab.className = 'car-tab' + (car.id === activeCarId ? ' active' : '');
+    tab.innerHTML = esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
+    tab.onclick = () => { activeCarId = car.id; render(); checkAndNotify(); };
+    el.appendChild(tab);
+  });
+}
+
+function renderMain() {
+  const el = document.getElementById('main-content');
+  if (!state.cars.length) {
+    el.innerHTML = `<div class="no-car">
+      <div class="emo">🚗</div>
+      <h2>車を追加しましょう</h2>
+      <p>右上の「＋」ボタンをタップして<br>最初の車を追加してください</p>
+      <button class="btn btn-primary" onclick="showCarModal(null)" style="max-width:240px">＋ 車を追加</button>
+    </div>`;
+    return;
+  }
+  const car = state.cars.find(c => c.id === activeCarId);
+  if (!car) { activeCarId = state.cars[0].id; renderMain(); return; }
+
+  let html = '';
+
+  // 通知バナー
+  if ('Notification' in window && Notification.permission === 'default' && car.items.length > 0) {
+    html += `<div class="notif-banner">
+      <div class="notif-banner-text">🔔 通知を許可するとメンテナンス時期をお知らせします</div>
+      <button class="notif-banner-btn" onclick="reqNotif()">許可する</button>
+    </div>`;
+  }
+
+  // 車情報
+  html += `<div class="car-info-card">
+    <h2>🚗 ${esc(car.name)}
+      <button class="btn-icon" style="font-size:18px" onclick="showCarModal('${car.id}')" title="編集">✏️</button>
+    </h2>
+    <div class="info-row"><span class="info-label">購入時期</span><span class="info-value">${esc(car.purchaseDate||'未設定')}</span></div>
+    <div class="info-row"><span class="info-label">総走行距離</span><span class="info-value">${car.totalMileage.toLocaleString()} km</span></div>
+    ${car.engineType  ? `<div class="info-row"><span class="info-label">エンジン</span><span class="info-value">${esc(car.engineType)}</span></div>`  : ''}
+    ${car.missionType ? `<div class="info-row"><span class="info-label">ミッション</span><span class="info-value">${esc(car.missionType)}</span></div>` : ''}
+  </div>`;
+
+  // メンテナンス項目
+  html += `<div class="section-header">
+    <h3>メンテナンス項目</h3>
+    <button class="btn-icon" style="font-size:24px" onclick="showItemModal('${car.id}',null)">＋</button>
+  </div>`;
+
+  if (!car.items.length) {
+    html += `<div class="empty-state"><div class="emo">🔧</div><p>まだ項目がありません<br>「＋」ボタンで追加してください</p></div>`;
+  } else {
+    html += `<div class="items-list">`;
+    car.items.forEach(item => {
+      const s = getStatus(item, car.totalMileage);
+      html += `<div class="item-row" onclick="showDetailModal('${car.id}','${item.id}')">
+        <div class="status-dot s-${s.code}"></div>
+        <div class="item-info">
+          <div class="item-name">${esc(item.name)}</div>
+          <div class="item-next">${esc(nextText(s,item))}</div>
+        </div>
+        <div class="item-chevron">›</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+//  モーダル管理
+// ═══════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+function onOverlayClick(e, id) {
+  if (e.target === e.currentTarget) closeModal(id);
+}
+
+// ── 車モーダル ──
+function showCarModal(carId) {
+  const car = carId ? state.cars.find(c => c.id === carId) : null;
+  document.getElementById('modal-car-title').textContent = car ? '車を編集' : '車を追加';
+  document.getElementById('mc-id').value = carId || '';
+  document.getElementById('mc-name').value = car?.name || '';
+  document.getElementById('mc-date').value = car?.purchaseDate || '';
+  document.getElementById('mc-mileage').value = car ? car.totalMileage : '';
+  document.getElementById('mc-engine').value = car?.engineType || '';
+  document.getElementById('mc-mission').value = car?.missionType || '';
+  document.getElementById('mc-template-wrap').style.display = 'none';
+  document.getElementById('mc-delete-wrap').style.display = car ? 'block' : 'none';
+  openModal('modal-car');
+  setTimeout(() => document.getElementById('mc-name').focus(), 350);
+}
+
+function saveCarModal() {
+  const id = document.getElementById('mc-id').value;
+  const name = document.getElementById('mc-name').value.trim();
+  const purchaseDate = document.getElementById('mc-date').value;
+  const totalMileage = document.getElementById('mc-mileage').value;
+  const engineType  = document.getElementById('mc-engine').value;
+  const missionType = document.getElementById('mc-mission').value;
+  if (!name) { alert('車名を入力してください'); return; }
+  if (id) {
+    updateCar(id, { name, purchaseDate, totalMileage, engineType, missionType });
+  } else {
+    const car = addCar(name, purchaseDate, totalMileage, engineType, missionType);
+    activeCarId = car.id;
+    if (document.getElementById('mc-use-template')?.checked) {
+      const count = applyTemplate(car.id, engineType, missionType);
+      if (count > 0) alert(`${count}件のメンテナンス項目をテンプレートから追加しました。\n不要な項目は後から削除できます。`);
+    }
+  }
+  closeModal('modal-car');
+  render();
+  checkAndNotify();
+}
+
+function applyTemplate(carId, engineType, missionType) {
+  const items = [
+    ...(TEMPLATES.engine[engineType]  || []),
+    ...(TEMPLATES.mission[missionType] || []),
+  ];
+  items.forEach(tpl => addItem(carId, tpl));
+  return items.length;
+}
+
+function updateTemplateVis() {
+  const isNew = !document.getElementById('mc-id').value;
+  if (!isNew) return;
+  const e = document.getElementById('mc-engine').value;
+  const m = document.getElementById('mc-mission').value;
+  document.getElementById('mc-template-wrap').style.display = (e || m) ? 'block' : 'none';
+}
+
+function deleteCarConfirm() {
+  const id = document.getElementById('mc-id').value;
+  const car = state.cars.find(c => c.id === id);
+  if (!car) return;
+  if (!confirm(`「${car.name}」を削除しますか？\nすべてのメンテナンスデータも削除されます。`)) return;
+  closeModal('modal-car');
+  deleteCar(id);
+  render();
+  checkAndNotify();
+}
+
+// ── 項目モーダル ──
+function showItemModal(carId, itemId) {
+  const car = state.cars.find(c => c.id === carId);
+  const item = itemId ? car?.items.find(i => i.id === itemId) : null;
+  document.getElementById('modal-item-title').textContent = item ? '項目を編集' : '項目を追加';
+  document.getElementById('mi-carid').value = carId;
+  document.getElementById('mi-id').value = itemId || '';
+  document.getElementById('mi-name').value = item?.name || '';
+  document.getElementById('mi-months').value = item?.intervalMonths || '';
+  document.getElementById('mi-km').value = item?.intervalKm || '';
+  document.getElementById('mi-notes').value = item?.notes || '';
+  document.getElementById('mi-delete-wrap').style.display = item ? 'block' : 'none';
+  openModal('modal-item');
+  setTimeout(() => document.getElementById('mi-name').focus(), 350);
+}
+
+function showItemModalForEdit() {
+  closeModal('modal-detail');
+  showItemModal(modalCtx.carId, modalCtx.itemId);
+}
+
+function saveItemModal() {
+  const carId = document.getElementById('mi-carid').value;
+  const itemId = document.getElementById('mi-id').value;
+  const name = document.getElementById('mi-name').value.trim();
+  const intervalMonths = document.getElementById('mi-months').value;
+  const intervalKm = document.getElementById('mi-km').value;
+  const notes = document.getElementById('mi-notes').value.trim();
+  if (!name) { alert('項目名を入力してください'); return; }
+  if (itemId) {
+    updateItem(carId, itemId, { name, intervalMonths, intervalKm, notes });
+  } else {
+    addItem(carId, { name, intervalMonths, intervalKm, notes });
+  }
+  closeModal('modal-item');
+  render();
+  checkAndNotify();
+}
+
+function deleteItemConfirm() {
+  const carId = document.getElementById('mi-carid').value;
+  const itemId = document.getElementById('mi-id').value;
+  const car = state.cars.find(c => c.id === carId);
+  const item = car?.items.find(i => i.id === itemId);
+  if (!item) return;
+  if (!confirm(`「${item.name}」を削除しますか？\nメンテナンス履歴もすべて削除されます。`)) return;
+  closeModal('modal-item');
+  deleteItem(carId, itemId);
+  render();
+  checkAndNotify();
+}
+
+// ── 詳細モーダル ──
+function showDetailModal(carId, itemId) {
+  const car = state.cars.find(c => c.id === carId);
+  const item = car?.items.find(i => i.id === itemId);
+  if (!item) return;
+  modalCtx = { carId, itemId };
+
+  const s = getStatus(item, car.totalMileage);
+  const statusLabel = { ok:'良好 ✅', warning:'もうすぐ ⚠️', danger:'時期超過 🔴', none:'未記録' };
+  const sbClass = { ok:'sb-ok', warning:'sb-warning', danger:'sb-danger', none:'sb-none' };
+
+  const intervalParts = [];
+  if (item.intervalMonths) intervalParts.push(`${item.intervalMonths}ヶ月ごと`);
+  if (item.intervalKm) intervalParts.push(`${item.intervalKm.toLocaleString()}kmごと`);
+
+  const sorted = [...(item.records||[])].sort((a,b) => new Date(b.date)-new Date(a.date));
+  const histHtml = sorted.length ? sorted.map(r => `
+    <div class="record-item">
+      <div class="record-date">
+        <span>${fmtDate(r.date)}</span>
+        <button class="record-delete" onclick="delRec('${carId}','${itemId}','${r.id}')">削除</button>
+      </div>
+      <div class="record-info">${r.mileage.toLocaleString()}km${r.notes ? ` · ${esc(r.notes)}` : ''}</div>
+    </div>`).join('')
+    : '<p style="color:var(--text2);font-size:14px;text-align:center;padding:16px 0">記録がありません</p>';
+
+  document.getElementById('modal-detail-title').textContent = item.name;
+  document.getElementById('modal-detail-content').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <span class="status-badge ${sbClass[s.code]}">${statusLabel[s.code]||'-'}</span>
+    </div>
+    <div class="detail-row"><span class="detail-label">交換間隔</span><span class="detail-value">${esc(intervalParts.join(' / ')||'なし')}</span></div>
+    <div class="detail-row"><span class="detail-label">次回（日付）</span><span class="detail-value">${s.nextDate ? fmtDate(s.nextDate) : '-'}</span></div>
+    <div class="detail-row"><span class="detail-label">次回（距離）</span><span class="detail-value">${s.nextMileage ? s.nextMileage.toLocaleString() + ' km' : '-'}</span></div>
+    <div class="detail-row"><span class="detail-label">前回（日付）</span><span class="detail-value">${s.lastDate ? fmtDate(s.lastDate) : '-'}</span></div>
+    <div class="detail-row"><span class="detail-label">前回（距離）</span><span class="detail-value">${s.lastMileage != null ? s.lastMileage.toLocaleString() + ' km' : '-'}</span></div>
+    ${item.notes ? `<div class="detail-row"><span class="detail-label">備考</span><span class="detail-value" style="white-space:pre-wrap">${esc(item.notes)}</span></div>` : ''}
+    <div class="modal-section-title">メンテナンス履歴</div>
+    ${histHtml}`;
+
+  openModal('modal-detail');
+}
+
+function delRec(carId, itemId, recId) {
+  if (!confirm('この記録を削除しますか？')) return;
+  deleteRecord(carId, itemId, recId);
+  showDetailModal(carId, itemId); // refresh
+  render();
+  checkAndNotify();
+}
+
+// ── 記録モーダル ──
+function showRecordModal() {
+  const car = state.cars.find(c => c.id === modalCtx.carId);
+  document.getElementById('mr-date').value = todayStr();
+  document.getElementById('mr-mileage').value = car?.totalMileage || '';
+  document.getElementById('mr-notes').value = '';
+  openModal('modal-record');
+  setTimeout(() => document.getElementById('mr-mileage').focus(), 350);
+}
+
+function saveRecordModal() {
+  const date = document.getElementById('mr-date').value;
+  const mileage = document.getElementById('mr-mileage').value;
+  const notes = document.getElementById('mr-notes').value.trim();
+  if (!date || !mileage) { alert('日付と走行距離を入力してください'); return; }
+  addRecord(modalCtx.carId, modalCtx.itemId, date, mileage, notes);
+  closeModal('modal-record');
+  showDetailModal(modalCtx.carId, modalCtx.itemId);
+  render();
+  checkAndNotify();
+}
+
+// ═══════════════════════════════════════════════
+//  通知
+// ═══════════════════════════════════════════════
+async function reqNotif() {
+  if (!('Notification' in window)) { alert('このブラウザは通知に対応していません'); return; }
+  const p = await Notification.requestPermission();
+  render();
+  if (p === 'granted') checkAndNotify();
+}
+
+async function checkAndNotify() {
+  if (!('serviceWorker' in navigator)) return;
+  let reg;
+  try { reg = await navigator.serviceWorker.ready; } catch(e) { return; }
+
+  const dueItems = [], clearTags = [];
+  let dueCount = 0;
+
+  for (const car of state.cars) {
+    for (const item of car.items) {
+      const s = getStatus(item, car.totalMileage);
+      const tag = `maint-${item.id}`;
+      if (s.code === 'danger' || s.code === 'warning') {
+        dueCount++;
+        dueItems.push({ title: `${car.name}`, body: `${item.name}: ${nextText(s,item)}`, tag });
+      } else {
+        clearTags.push(tag);
+      }
+    }
+  }
+
+  // バッジ更新
+  try {
+    if (dueCount > 0) navigator.setAppBadge?.(dueCount);
+    else navigator.clearAppBadge?.();
+  } catch(e) {}
+
+  // 通知
+  if (Notification.permission === 'granted' && reg.active) {
+    reg.active.postMessage({ type: 'UPDATE_NOTIFICATIONS', showItems: dueItems, clearTags });
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  初期化
+// ═══════════════════════════════════════════════
+async function init() {
+  // Service Worker 登録
+  if ('serviceWorker' in navigator) {
+    try { await navigator.serviceWorker.register('./sw.js'); } catch(e) { console.warn('SW failed', e); }
+  }
+  loadState();
+  activeCarId = state.cars[0]?.id ?? null;
+  render();
+  setTimeout(checkAndNotify, 800);
+}
+
+// アプリに戻ったとき再チェック
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { render(); checkAndNotify(); }
+});
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
