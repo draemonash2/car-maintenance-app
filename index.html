@@ -206,10 +206,12 @@
     .resv-title{font-size:13px;font-weight:700;margin-bottom:4px}
     .resv-box.expired .resv-title{color:var(--danger)}
     .resv-desc{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px}
-    .resv-row{display:flex;gap:8px;align-items:center}
-    .resv-row .form-control{flex:1;min-width:0;padding:8px 10px;font-size:15px}
-    .resv-row .btn-pill{flex-shrink:0;padding:9px 12px}
-    .resv-cancel{border:none;background:none;color:var(--danger);font-size:12px;font-family:inherit;cursor:pointer;padding:8px 0 0}
+    .plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+    .plan-label{font-size:11px;color:var(--text2);font-weight:600}
+    .plan-grid .form-control{min-width:0;padding:8px 10px;font-size:15px}
+    .plan-actions{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+    .plan-actions .btn-pill{padding:9px 14px}
+    .resv-cancel{border:none;background:none;color:var(--danger);font-size:12px;font-family:inherit;cursor:pointer;padding:8px 0}
     .item-desc{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
     .item-desc-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
     .item-desc p{font-size:13px;line-height:1.7}
@@ -612,6 +614,9 @@ function loadState() {
   state.cars.forEach(c => {
     c.engineType  ||= DEFAULT_ENGINE;
     c.missionType ||= DEFAULT_MISSION;
+    c.items.forEach(i => {
+      if (i.reservation) { i.plan = { date: i.reservation.date || '', km: null, since: i.reservation.since || '' }; delete i.reservation; migrated = true; }
+    });
     if (!c.mileageLog) {
       c.mileageLog = [];
       if (c.totalMileage > 0) logMileage(c, todayStr(), c.totalMileage);
@@ -740,43 +745,56 @@ function addRecord(carId, itemId, date, mileage, notes) {
   if (!item) return;
   const rec = { id: uid(), date, mileage: +mileage, notes: notes||'' };
   item.records.push(rec);
-  delete item.reservation;
+  delete item.plan;
   if (+mileage > car.totalMileage) car.totalMileage = +mileage;
   save();
   return rec;
 }
 
-// ── 予約済み ──
-// 予約日を入れた場合、その日を過ぎたら予約の効果は切れる（記録忘れ・延期に気づけるように）
-function reservationState(item) {
-  const r = item.reservation;
-  if (!r) return null;
-  return r.date && todayStr() > r.date ? 'expired' : 'active';
+// ── メンテナンス予定 ──
+// 指定した日付・走行距離（早く来た方）になるまで通知しない。どちらも空なら記録するまで通知しない
+function planState(item, car) {
+  const p = item.plan;
+  if (!p) return null;
+  const byDate = p.date && todayStr() >= p.date;
+  const byKm = p.km && car.totalMileage >= p.km;
+  return byDate || byKm ? 'due' : 'active';
 }
 
-function reservationChip(item, rs) {
-  const d = item.reservation.date ? ` ${+item.reservation.date.slice(5, 7)}/${+item.reservation.date.slice(8, 10)}` : '';
-  return rs === 'expired'
-    ? `<span class="resv-chip expired">予約日${d}経過</span>`
-    : `<span class="resv-chip">予約済み${d}</span>`;
+function planWhen(p) {
+  const parts = [];
+  if (p.date) parts.push(`${+p.date.slice(5, 7)}/${+p.date.slice(8, 10)}`);
+  if (p.km) parts.push(`${p.km.toLocaleString()}km`);
+  return parts.join('・');
 }
 
-function saveReservation() {
+function planChip(item, ps) {
+  const when = planWhen(item.plan);
+  return ps === 'due'
+    ? `<span class="resv-chip expired">予定の時期です</span>`
+    : `<span class="resv-chip">予定${when ? ' ' + when : 'あり'}</span>`;
+}
+
+function savePlan() {
   const car = state.cars.find(c => c.id === modalCtx.carId);
   const item = car?.items.find(i => i.id === modalCtx.itemId);
   if (!item) return;
-  item.reservation = { date: document.getElementById('resv-date').value || '', since: todayStr() };
+  const date = document.getElementById('plan-date').value || '';
+  const km = +document.getElementById('plan-km').value || 0;
+  if (date && date <= todayStr()) { alert('予定日は明日以降の日付を入れてください'); return; }
+  if (km && km <= car.totalMileage) { alert(`予定の走行距離は、今の総走行距離（${car.totalMileage.toLocaleString()} km）より大きい値を入れてください`); return; }
+  item.plan = { date, km: km || null, since: todayStr() };
   save();
   showDetailModal(car.id, item.id);
   render();
   checkAndNotify();
 }
 
-function cancelReservation() {
+function cancelPlan() {
   const car = state.cars.find(c => c.id === modalCtx.carId);
   const item = car?.items.find(i => i.id === modalCtx.itemId);
   if (!item) return;
-  delete item.reservation;
+  delete item.plan;
   save();
   showDetailModal(car.id, item.id);
   render();
@@ -786,7 +804,7 @@ function cancelReservation() {
 // バッジ・通知・「要対応」の対象か
 function needsAttention(item, car) {
   const code = getStatus(item, car.totalMileage).code;
-  return (code === 'danger' || code === 'warning') && reservationState(item) !== 'active';
+  return (code === 'danger' || code === 'warning') && planState(item, car) !== 'active';
 }
 
 function deleteRecord(carId, itemId, recordId) {
@@ -880,7 +898,7 @@ function renderTabs() {
   state.cars.forEach(car => {
     const dueCount = car.items.filter(i => needsAttention(i, car)).length;
     totalDue += dueCount;
-    totalReserved += car.items.filter(i => reservationState(i) === 'active').length;
+    totalReserved += car.items.filter(i => planState(i, car) === 'active').length;
     const tab = document.createElement('button');
     tab.className = 'car-tab' + (car.id === activeCarId ? ' active' : '');
     tab.innerHTML = `<span class="tab-icon" style="filter:${iconFilter(car.iconColor)}">${esc(car.icon||DEFAULT_ICON)}</span>` + esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
@@ -890,7 +908,7 @@ function renderTabs() {
   document.getElementById('brand-sub').innerHTML = !state.cars.length
     ? 'まずは車を登録しましょう'
     : `${state.cars.length}台を管理中` + (totalDue ? `<span class="alert">要対応 ${totalDue}件</span>` : totalReserved ? '' : ' · すべて良好')
-      + (totalReserved ? `<span class="resv">予約済み ${totalReserved}件</span>` : '');
+      + (totalReserved ? `<span class="resv">対応予定 ${totalReserved}件</span>` : '');
 }
 
 function renderMain() {
@@ -948,11 +966,11 @@ function renderMain() {
     html += `<div class="items-list">`;
     car.items.forEach(item => {
       const s = getStatus(item, car.totalMileage);
-      const rs = reservationState(item);
+      const rs = planState(item, car);
       html += `<div class="item-row" onclick="showDetailModal('${car.id}','${item.id}')">
         <div class="status-dot s-${s.code}${rs === 'active' ? ' muted' : ''}"></div>
         <div class="item-info">
-          <div class="item-name">${esc(item.name)}${rs ? reservationChip(item, rs) : ''}</div>
+          <div class="item-name">${esc(item.name)}${rs ? planChip(item, rs) : ''}</div>
           <div class="item-next">${esc(nextText(s,item))}</div>
         </div>
         <div class="item-chevron">›</div>
@@ -1273,8 +1291,8 @@ function sanitizeBackup(raw) {
       intervalMonths: optNum(i.intervalMonths),
       intervalKm: optNum(i.intervalKm),
       notes: str(i.notes, 1000),
-      ...(i.reservation && typeof i.reservation === 'object'
-        ? { reservation: { date: date(i.reservation.date) || '', since: date(i.reservation.since) || '' } } : {}),
+      ...((p => p && typeof p === 'object'
+        ? { plan: { date: date(p.date) || '', km: num(p.km) || null, since: date(p.since) || '' } } : {})(i.plan || i.reservation)),
       records: (Array.isArray(i.records) ? i.records : [])
         .filter(r => date(r?.date)).map(r => ({ id: id(r.id), date: r.date, mileage: num(r.mileage), notes: str(r.notes, 1000) })),
     })),
@@ -1576,9 +1594,9 @@ function showDetailModal(carId, itemId) {
   document.getElementById('modal-detail-content').innerHTML = `
     <div style="text-align:center;margin-bottom:16px">
       <span class="status-badge ${sbClass[s.code]}">${statusLabel[s.code]||'-'}</span>
-      ${reservationState(item) ? reservationChip(item, reservationState(item)) : ''}
+      ${planState(item, car) ? planChip(item, planState(item, car)) : ''}
     </div>
-    ${reservationBoxHTML(item)}
+    ${planBoxHTML(item, car)}
     ${ITEM_INFO[item.name] ? `<div class="item-desc"><div class="item-desc-title">📖 この項目について</div><p>${esc(ITEM_INFO[item.name])}</p></div>` : ''}
     <div class="detail-row"><span class="detail-label">交換間隔</span><span class="detail-value">${esc(intervalParts.join(' / ')||'なし')}</span></div>
     <div class="detail-row"><span class="detail-label">次回（日付）</span><span class="detail-value">${s.nextDate ? fmtDate(s.nextDate) : '-'}</span></div>
@@ -1592,22 +1610,28 @@ function showDetailModal(carId, itemId) {
   openModal('modal-detail');
 }
 
-function reservationBoxHTML(item) {
-  const r = item.reservation, rs = reservationState(item);
-  const head = !r ? 'メンテナンスの予約'
-    : rs === 'expired' ? `予約日（${fmtDate(r.date)}）を過ぎています`
-    : r.date ? `${fmtDate(r.date)} に予約済み` : '予約済み（日付未定）';
-  return `<div class="resv-box${rs === 'expired' ? ' expired' : ''}">
+function planBoxHTML(item, car) {
+  const p = item.plan, ps = planState(item, car);
+  const when = p ? [p.date ? fmtDate(p.date) : '', p.km ? `${p.km.toLocaleString()} km` : ''].filter(Boolean).join(' または ') : '';
+  const head = !p ? 'メンテナンス予定'
+    : ps === 'due' ? '予定の時期になりました'
+    : when ? `${when} まで通知しません` : '記録するまで通知しません';
+  return `<div class="resv-box${ps === 'due' ? ' expired' : ''}">
     <div class="resv-title">${esc(head)}</div>
-    <p class="resv-desc">${!r
-      ? '予約済みにすると、メンテナンスを記録するまでバッジと通知の対象から外れます。予約日を入れた場合は、その日を過ぎるとまた表示されます。'
-      : rs === 'expired' ? 'メンテナンスが済んでいれば記録してください。延期した場合は予約日を変更してください。'
-      : 'メンテナンスを記録すると予約は自動で外れます。'}</p>
-    <div class="resv-row">
-      <input type="date" id="resv-date" class="form-control" value="${r?.date || ''}" aria-label="予約日（任意）">
-      <button class="btn-pill" onclick="saveReservation()">${r ? '予約日を変更' : '予約済みにする'}</button>
+    <p class="resv-desc">${!p
+      ? '今すぐ対応しない場合に、次に対応する時期を決めておけます。指定した日付か走行距離（早く来た方）になるまで、バッジと通知の対象から外れます。どちらも空欄なら、記録するまで外れます。'
+      : ps === 'due' ? `予定（${esc(when)}）になりました。メンテナンスしたら記録してください。さらに延ばす場合は予定を変更してください。`
+      : 'メンテナンスを記録すると予定は自動で外れます。'}</p>
+    <div class="plan-grid">
+      <label class="plan-label" for="plan-date">日付（任意）</label>
+      <label class="plan-label" for="plan-km">走行距離 km（任意）</label>
+      <input type="date" id="plan-date" class="form-control" value="${p?.date || ''}">
+      <input type="number" id="plan-km" class="form-control" value="${p?.km || ''}" min="0" step="100" inputmode="numeric" placeholder="例: ${(Math.ceil(car.totalMileage / 1000) * 1000 + 3000).toLocaleString('en-US', { useGrouping: false })}">
     </div>
-    ${r ? '<button class="resv-cancel" onclick="cancelReservation()">予約を取り消す</button>' : ''}
+    <div class="plan-actions">
+      ${p ? '<button class="resv-cancel" onclick="cancelPlan()">予定を取り消す</button>' : '<span></span>'}
+      <button class="btn-pill" onclick="savePlan()">${p ? '予定を変更' : '予定を設定'}</button>
+    </div>
   </div>`;
 }
 
