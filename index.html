@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="車メンテ">
+  <meta name="apple-mobile-web-app-title" content="カーメンテナンス">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.svg">
-  <title>車メンテ管理</title>
+  <title>カーメンテナンス</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
     :root{
@@ -145,6 +145,9 @@
     .sb-warning{background:rgba(255,149,0,.15);color:var(--warning)}
     .sb-danger{background:rgba(255,59,48,.15);color:var(--danger)}
     .sb-none{background:var(--surface2);color:var(--text2)}
+    .item-desc{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+    .item-desc-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
+    .item-desc p{font-size:13px;line-height:1.7}
     .modal-section-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px}
     .record-item{padding:10px 0;border-bottom:1px solid var(--border)}
     .record-item:last-child{border-bottom:none}
@@ -166,7 +169,7 @@
     </div>
     <div class="brand-text">
       <div class="brand-eyebrow">CAR MAINTENANCE</div>
-      <h1>車メンテ管理</h1>
+      <h1>カーメンテナンス</h1>
       <div class="brand-sub" id="brand-sub"></div>
     </div>
     <button class="btn-add" onclick="showCarModal(null)" aria-label="車を追加" title="車を追加">
@@ -360,6 +363,7 @@ const TEMPLATES = {
       { name: '補機バッテリー（12V）',   intervalMonths: 36, intervalKm: null,  notes: 'ハイブリッド車は早めの点検推奨' },
       { name: '駆動用バッテリー点検',    intervalMonths: 12, intervalKm: null,  notes: '' },
       { name: 'エアコンフィルター',      intervalMonths: 12, intervalKm: null,  notes: '' },
+      { name: 'スパークプラグ',          intervalMonths: null, intervalKm: 100000, notes: 'イリジウムプラグが一般的' },
     ],
     'ディーゼル': [
       { name: 'エンジンオイル',                        intervalMonths: 6,  intervalKm: 5000,  notes: 'ディーゼル指定オイル（DL-1等）を使用' },
@@ -385,14 +389,51 @@ const TEMPLATES = {
       { name: 'ブレーキフルード',    intervalMonths: 24, intervalKm: null, notes: '' },
       { name: 'クーラント（冷却水）',intervalMonths: 48, intervalKm: null, notes: '' },
       { name: 'エアコンフィルター',  intervalMonths: 12, intervalKm: null, notes: '' },
+      { name: 'スパークプラグ',      intervalMonths: 24, intervalKm: 30000, notes: '' },
     ],
   },
   mission: {
     'AT':   [{ name: 'ATF（オートマオイル）', intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正ATFを推奨' }],
     'CVT':  [{ name: 'CVTフルード',           intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正CVTフルードを推奨' }],
     'MT':   [{ name: 'ミッションオイル',       intervalMonths: 36, intervalKm: 30000, notes: '' }],
-    'その他': [],
+    'その他': [{ name: 'ミッションオイル',     intervalMonths: 36, intervalKm: 30000, notes: '車種指定のオイルを確認' }],
   },
+  // エンジン・ミッション種別に関係なく追加（skipEngines の種別は除外）
+  common: [
+    { name: 'ブレーキパッド',     intervalMonths: null, intervalKm: 40000, notes: '残量は点検で確認。HV/EVは減りが遅め' },
+    { name: 'デフオイル',         intervalMonths: 24, intervalKm: 30000, notes: 'FF車はミッションと一体の場合あり', skipEngines: ['EV'] },
+    { name: 'ワイパーゴム',       intervalMonths: 12, intervalKm: null, notes: '' },
+    { name: 'エバポレーター洗浄', intervalMonths: 12, intervalKm: null, notes: '' },
+    { name: '夏タイヤ買替え',     intervalMonths: 60, intervalKm: null, notes: '溝が残っていてもゴムの劣化に注意' },
+    { name: '冬タイヤ買替え',     intervalMonths: 60, intervalKm: null, notes: 'スタッドレスを使う場合のみ' },
+  ],
+};
+
+// 項目名ごとの説明（どんな部品・作業か、どんな車に付いているか）
+const ITEM_INFO = {
+  'エンジンオイル': 'エンジン内部の金属部品どうしの摩擦を減らす潤滑油です。冷却・洗浄・サビ防止の役割もあります。ガソリン車・ディーゼル車・ハイブリッド車など、エンジンを積んだすべての車に必要です（EVにはありません）。劣化すると燃費の悪化やエンジン故障の原因になります。',
+  'オイルエレメント': 'エンジンオイルに混ざった金属粉や汚れをこし取るフィルターで、「オイルフィルター」とも呼ばれます。エンジンを積んだすべての車に付いています。オイル交換2回に1回の交換が目安です。',
+  'エアフィルター': 'エンジンが吸い込む空気からホコリやゴミを取り除くフィルター（エアクリーナー）です。エンジンを積んだすべての車に付いています。詰まると燃費や加速が悪くなります。',
+  'スパークプラグ': 'ガソリンエンジンで燃料に火をつけるための火花を飛ばす部品です。ガソリン車・ハイブリッド車に付いています（ディーゼル車・EVにはありません）。劣化するとエンジンのかかりが悪くなったり、加速不良・燃費悪化の原因になります。イリジウムプラグなど長寿命タイプもあります。',
+  'ブレーキフルード': 'ブレーキペダルを踏む力をタイヤのブレーキに伝える油（ブレーキオイル）です。すべての車に使われています。空気中の湿気を吸って劣化し、放置するとブレーキが効きにくくなる危険があるため、車検ごとの交換が一般的です。',
+  'クーラント（冷却水）': 'エンジンを冷やすための冷却液（LLC）で、凍結防止やサビ防止の役割もあります。エンジンを積んだすべての車に使われています。不足や劣化はオーバーヒートの原因になります。長寿命タイプ（スーパーLLC）は交換間隔が長めです。',
+  'バッテリー': 'エンジンの始動や、ライト・ナビなどの電装品に電気を送る12Vバッテリーです。すべての車に付いています。寿命は2〜5年ほどで、弱るとエンジンがかからなくなります。',
+  'エアコンフィルター': '車内に取り込む空気から花粉・ホコリ・PM2.5などを取り除くフィルター（キャビンフィルター）です。ほとんどの車でグローブボックスの奥に付いています。汚れるとエアコンの臭いや風量低下の原因になります。',
+  '補機バッテリー（12V）': 'ハイブリッド車・EVで、システムの起動や電装品に電気を送る12Vバッテリーです。走行用の大きなバッテリーとは別物です。上がるとシステムが起動できず、車を動かせなくなります。',
+  '駆動用バッテリー点検': 'ハイブリッド車・EVのモーターを動かす大容量の走行用バッテリーの点検です。交換すると高額なため、ディーラーで劣化状態を定期的にチェックしてもらうと安心です。後部座席付近にある冷却用の吸気口の掃除も大切です。',
+  '燃料フィルター': '燃料（軽油）に含まれるゴミや水分を取り除くフィルターです。特にディーゼル車では定期交換が必要です。詰まるとエンジン不調や燃料噴射装置の故障につながります。',
+  'DPF清浄（粒子状物質除去フィルター）': 'ディーゼル車の排気ガスに含まれるススを集めて燃やすフィルターです。通常は走行中に自動で燃焼（再生）しますが、短距離走行が多いとススがたまりやすくなります。警告灯が点いたら早めに点検しましょう。',
+  'バッテリー冷却水': 'EVの走行用バッテリーやモーターを適温に保つための冷却液です。バッテリーの寿命や性能に関わるため、定期的な点検・交換が必要です。',
+  'タイヤローテーション': '前後左右のタイヤの位置を入れ替えて、すり減り方を均一にする作業です。すべての車で効果があり、タイヤを長持ちさせられます。車重の重いEVや前輪駆動（FF）車は前輪が減りやすいため特に有効です。',
+  'ATF（オートマオイル）': 'AT（オートマチック）車の変速機に使われるオイルです。潤滑だけでなく、エンジンの力を伝える役割もあります。劣化すると変速ショックや燃費悪化の原因になります。長期間交換していない車は、交換で不調が出ることもあるため整備工場に相談しましょう。',
+  'CVTフルード': 'CVT（無段変速機）車専用のオイルです。内部のベルトとプーリーの間で力を伝える重要な役割があります。ATFとは別物で、車種ごとの専用品を使う必要があります。軽自動車やコンパクトカーに多い方式です。',
+  'ミッションオイル': 'MT（マニュアル）車などの変速機内部のギアを潤滑するオイル（ギアオイル）です。劣化するとギアが入りにくくなったり、異音が出たりします。',
+  'ブレーキパッド': 'ブレーキディスクを両側から挟んで車を止める摩擦材です。すべての車に付いています（後輪がドラムブレーキの車は「ブレーキシュー」）。走るほどすり減り、残りが少なくなると「キーキー」と警告音が鳴ります。ハイブリッド車・EVは回生ブレーキを使うため減りが遅めです。',
+  'デフオイル': 'デフ（ディファレンシャルギア）を潤滑するオイルです。デフはカーブで左右のタイヤの回転差を吸収する装置です。FR（後輪駆動）車や4WD車は独立したデフがあり、定期交換が必要です。FF（前輪駆動）車はミッションと一体のことが多く、その場合はミッションオイル／ATFの交換でまかなえます。',
+  'ワイパーゴム': 'ワイパーのうち、ガラスに触れるゴムの部分です。すべての車に付いています。紫外線や熱で硬くなり、拭きムラやビビリ音が出たら交換のサインです。ゴムだけの交換なら安く済みます。',
+  'エバポレーター洗浄': 'エバポレーターは、エアコン内部で空気を冷やす部品です。結露でカビや雑菌が繁殖しやすく、エアコンの嫌な臭いの主な原因になります。エアコン付きのすべての車が対象で、専用の洗浄剤や業者による洗浄で臭いを予防できます。',
+  '夏タイヤ買替え': '普段使う夏用（ノーマル）タイヤです。溝がすり減るほか、ゴムが年数とともに硬くなりひび割れるため、溝が残っていても製造から5年ほどでの交換がすすめられます。残り溝が1.6mm（スリップサイン）を下回ると車検に通りません。',
+  '冬タイヤ買替え': '雪道・凍結路用のスタッドレスタイヤです。ゴムが硬くなると氷の上で止まりにくくなるため、3〜5シーズンが交換の目安です。残り溝が新品の50%（プラットフォーム）まで減ると冬用タイヤとしては使えません。雪が降る地域に住む人や、冬に雪道を走る人向けです。',
 };
 const CAR_ICONS = ['🚗','🚙','🚕','🏎️','🚐','🛻','🚚','🚛','🚌','🚓','🚑','🚒','🏍️','🛵','🚜','🚲'];
 const DEFAULT_ICON = '🚗';
@@ -729,6 +770,7 @@ function applyTemplate(carId, engineType, missionType) {
   const items = [
     ...(TEMPLATES.engine[engineType]  || []),
     ...(TEMPLATES.mission[missionType] || []),
+    ...TEMPLATES.common.filter(t => !t.skipEngines?.includes(engineType)),
   ];
   items.forEach(tpl => addItem(carId, tpl));
   return items.length;
@@ -875,6 +917,7 @@ function showDetailModal(carId, itemId) {
     <div style="text-align:center;margin-bottom:16px">
       <span class="status-badge ${sbClass[s.code]}">${statusLabel[s.code]||'-'}</span>
     </div>
+    ${ITEM_INFO[item.name] ? `<div class="item-desc"><div class="item-desc-title">📖 この項目について</div><p>${esc(ITEM_INFO[item.name])}</p></div>` : ''}
     <div class="detail-row"><span class="detail-label">交換間隔</span><span class="detail-value">${esc(intervalParts.join(' / ')||'なし')}</span></div>
     <div class="detail-row"><span class="detail-label">次回（日付）</span><span class="detail-value">${s.nextDate ? fmtDate(s.nextDate) : '-'}</span></div>
     <div class="detail-row"><span class="detail-label">次回（距離）</span><span class="detail-value">${s.nextMileage ? s.nextMileage.toLocaleString() + ' km' : '-'}</span></div>

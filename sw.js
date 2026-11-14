@@ -1,5 +1,5 @@
-// Service Worker for 車メンテ管理
-const CACHE = 'car-maint-v3';
+// Service Worker for カーメンテナンス
+const CACHE = 'car-maint-v4';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg', './icon-maskable.svg'];
 
 // インストール時にキャッシュ
@@ -27,7 +27,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   const data = e.data?.json() ?? {};
   e.waitUntil(
-    self.registration.showNotification(data.title || '車メンテ管理', {
+    self.registration.showNotification(data.title || 'カーメンテナンス', {
       body: data.body || 'メンテナンスの確認をしてください',
       icon: './icon.svg',
       badge: './icon.svg',
