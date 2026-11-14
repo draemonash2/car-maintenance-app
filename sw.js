@@ -1,10 +1,10 @@
 // Service Worker for カーメンテナンス
-const CACHE = 'car-maint-v7';
+const CACHE = 'car-maint-v8';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg', './icon-maskable.svg'];
 
-// インストール時にキャッシュ
+// インストール時にキャッシュ（ブラウザのHTTPキャッシュを経由せず最新を取得）
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))));
   self.skipWaiting();
 });
 
@@ -18,8 +18,22 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// オフラインでも動くようにキャッシュから返す
+// ページ本体はネットワーク優先（更新をすぐ反映）、オフライン時はキャッシュ。その他はキャッシュ優先
 self.addEventListener('fetch', e => {
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-cache' })
+        .then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then(c => c.put('./index.html', copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
 

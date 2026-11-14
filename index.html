@@ -266,6 +266,7 @@
           <input type="checkbox" id="mc-use-template" checked style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0">
           <span>テンプレートからメンテナンス項目を<br>自動追加する</span>
         </label>
+        <p id="mc-template-hint" class="tpl-lead" style="display:none;margin:6px 2px 0">エンジン種別が未設定の場合は、ガソリン車の標準項目を追加します。</p>
       </div>
       <div id="mc-delete-wrap" style="display:none; margin-top:24px">
         <div class="divider" style="margin:0 0 16px"></div>
@@ -777,7 +778,7 @@ function showCarModal(carId) {
   document.getElementById('mc-mission').value = car?.missionType || '';
   selectIcon(car?.icon || DEFAULT_ICON);
   selectIconColor(car?.iconColor || '');
-  document.getElementById('mc-template-wrap').style.display = 'none';
+  updateTemplateVis();
   document.getElementById('mc-delete-wrap').style.display = car ? 'block' : 'none';
   openModal('modal-car');
   setTimeout(() => document.getElementById('mc-name').focus(), 350);
@@ -808,10 +809,12 @@ function saveCarModal() {
   checkAndNotify();
 }
 
+const DEFAULT_ENGINE = 'ガソリン';
+
 function templateItemsFor(engineType, missionType) {
   const seen = new Set();
   return [
-    ...(TEMPLATES.engine[engineType]  || []),
+    ...(TEMPLATES.engine[engineType || DEFAULT_ENGINE] || []),
     ...(TEMPLATES.mission[missionType] || []),
     ...TEMPLATES.common,
   ].filter(t => !seen.has(t.name) && seen.add(t.name));
@@ -838,10 +841,9 @@ function showTemplateModal(carId) {
   const existing = new Set(car.items.map(i => i.name));
   const all = templateItemsFor(car.engineType, car.missionType);
   const tpls = [...all.filter(t => !existing.has(t.name)), ...all.filter(t => existing.has(t.name))];
-  const typeLabel = [car.engineType, car.missionType].filter(Boolean).join(' / ');
-  let html = typeLabel
-    ? `<p class="tpl-lead">${esc(typeLabel)} 向けの項目です。追加したい項目を選んでください。</p>`
-    : `<p class="tpl-lead">エンジン種別・ミッション種別が未設定のため、共通の項目のみ表示しています。車の編集で種別を設定すると、その車に合った項目が表示されます。</p>`;
+  const typeLabel = [car.engineType || `${DEFAULT_ENGINE}（未設定）`, car.missionType].filter(Boolean).join(' / ');
+  let html = `<p class="tpl-lead">${esc(typeLabel)} 向けの項目です。追加したい項目を選んでください。</p>`;
+  if (!car.engineType) html += `<p class="tpl-lead">エンジン種別が未設定のため、ガソリン車の標準項目を表示しています。車の編集で種別を設定すると、その車に合った項目になります。</p>`;
   html += '<div class="tpl-list">' + tpls.map((t, i) => {
     const has = existing.has(t.name);
     return `<label class="tpl-row${has ? ' disabled' : ''}">
@@ -917,10 +919,9 @@ function selectIcon(icon) {
 
 function updateTemplateVis() {
   const isNew = !document.getElementById('mc-id').value;
-  if (!isNew) return;
-  const e = document.getElementById('mc-engine').value;
-  const m = document.getElementById('mc-mission').value;
-  document.getElementById('mc-template-wrap').style.display = (e || m) ? 'block' : 'none';
+  document.getElementById('mc-template-wrap').style.display = isNew ? 'block' : 'none';
+  document.getElementById('mc-template-hint').style.display =
+    isNew && !document.getElementById('mc-engine').value ? 'block' : 'none';
 }
 
 function deleteCarConfirm() {
