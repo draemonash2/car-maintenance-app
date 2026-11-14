@@ -169,6 +169,23 @@
     .tpl-row.disabled{cursor:default}
     .tpl-row.disabled .tpl-row-main{opacity:.45}
     .tpl-row-tag{font-size:11px;font-weight:600;color:var(--text2);background:var(--surface);padding:2px 8px;border-radius:10px;flex-shrink:0}
+    .mileage-card{margin:0 16px;background:var(--surface);border-radius:14px;padding:14px 16px 12px;box-shadow:var(--card-shadow)}
+    .mstat{display:flex;align-items:flex-end;gap:22px;margin-bottom:6px}
+    .mstat-label{font-size:11px;color:var(--text2)}
+    .mstat-v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+    .mstat-v.sm{font-size:17px}
+    .mstat-v small{font-size:12px;font-weight:500;color:var(--text2)}
+    .mstat-span{margin-left:auto;font-size:11px;color:var(--text2);padding-bottom:3px}
+    .mchart svg{display:block;width:100%;height:auto}
+    .mchart-cap{font-size:13px;color:var(--text2);margin-top:4px}
+    .mchart-cap b{color:var(--text);font-variant-numeric:tabular-nums}
+    .mchart-legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-top:6px}
+    .mtable{margin-top:8px;font-size:13px}
+    .mtable summary{color:var(--accent);cursor:pointer;font-size:12px;font-weight:600;padding:4px 0}
+    .mtable table{width:100%;border-collapse:collapse;margin-top:4px;font-variant-numeric:tabular-nums}
+    .mtable th,.mtable td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--border)}
+    .mtable th{font-size:11px;color:var(--text2);font-weight:600}
+    .mtable td:nth-child(2){text-align:right}.mtable th:nth-child(2){text-align:right}
     .item-desc{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
     .item-desc-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
     .item-desc p{font-size:13px;line-height:1.7}
@@ -306,6 +323,33 @@
         <div class="divider" style="margin:0 0 16px"></div>
         <button class="btn btn-danger" onclick="deleteItemConfirm()">この項目を削除</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 走行距離モーダル ===== -->
+<div class="modal-overlay" id="modal-mileage" onclick="onOverlayClick(event,'modal-mileage')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-mileage')">閉じる</button>
+      <span class="modal-title">走行距離を記録</span>
+      <button class="modal-btn save" onclick="saveMileageModal()">保存</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="mm-date">日付</label>
+          <input class="form-control" id="mm-date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="mm-km">総走行距離（km）</label>
+          <input class="form-control" id="mm-km" type="number" min="0" inputmode="numeric">
+        </div>
+      </div>
+      <p class="tpl-lead">過去の日付でも記録できます。同じ日付の記録は上書きされます。</p>
+      <div class="modal-section-title">これまでの記録</div>
+      <div id="mm-history"></div>
     </div>
   </div>
 </div>
@@ -501,10 +545,17 @@ function loadState() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) { const d = JSON.parse(raw); state = { cars: d.cars || [] }; }
   } catch(e) { state = { cars: [] }; }
+  let migrated = false;
   state.cars.forEach(c => {
     c.engineType  ||= DEFAULT_ENGINE;
     c.missionType ||= DEFAULT_MISSION;
+    if (!c.mileageLog) {
+      c.mileageLog = [];
+      if (c.totalMileage > 0) logMileage(c, todayStr(), c.totalMileage);
+      migrated = true;
+    }
   });
+  if (migrated) save();
 }
 
 function save() {
@@ -517,7 +568,8 @@ function uid() {
 
 // ── Car CRUD ──
 function addCar(name, purchaseDate, totalMileage, engineType, missionType, icon, iconColor) {
-  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||DEFAULT_ENGINE, missionType: missionType||DEFAULT_MISSION, icon: icon||DEFAULT_ICON, iconColor: iconColor||'', items: [] };
+  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||DEFAULT_ENGINE, missionType: missionType||DEFAULT_MISSION, icon: icon||DEFAULT_ICON, iconColor: iconColor||'', items: [], mileageLog: [] };
+  if (car.totalMileage > 0) logMileage(car, todayStr(), car.totalMileage);
   state.cars.push(car);
   save();
   return car;
@@ -528,7 +580,11 @@ function updateCar(id, patch) {
   if (!car) return;
   if (patch.name !== undefined) car.name = patch.name;
   if (patch.purchaseDate !== undefined) car.purchaseDate = patch.purchaseDate;
-  if (patch.totalMileage !== undefined) car.totalMileage = +patch.totalMileage || 0;
+  if (patch.totalMileage !== undefined) {
+    const km = +patch.totalMileage || 0;
+    if (km !== car.totalMileage) logMileage(car, todayStr(), km);
+    car.totalMileage = km;
+  }
   if (patch.engineType  !== undefined) car.engineType  = patch.engineType;
   if (patch.missionType !== undefined) car.missionType = patch.missionType;
   if (patch.icon        !== undefined) car.icon        = patch.icon;
@@ -540,6 +596,55 @@ function deleteCar(id) {
   state.cars = state.cars.filter(c => c.id !== id);
   if (activeCarId === id) activeCarId = state.cars[0]?.id ?? null;
   save();
+}
+
+// ── 走行距離履歴 ──
+// 同じ日付の記録は上書き（入力ミスの訂正を想定）
+function logMileage(car, date, mileage) {
+  car.mileageLog ||= [];
+  const ex = car.mileageLog.find(l => l.date === date);
+  if (ex) ex.mileage = mileage;
+  else car.mileageLog.push({ id: uid(), date, mileage });
+}
+
+// 走行距離履歴＋メンテ記録を日付順に統合（同日は大きい方、距離が戻る点は除外）
+function mileagePoints(car) {
+  const byDate = new Map();
+  const put = (date, km) => { if (!(byDate.get(date) >= km)) byDate.set(date, km); };
+  (car.mileageLog || []).forEach(l => put(l.date, l.mileage));
+  car.items.forEach(i => i.records.forEach(r => put(r.date, r.mileage)));
+  const pts = [];
+  [...byDate.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).forEach(([date, mileage]) => {
+    if (!pts.length || mileage >= pts[pts.length - 1].mileage) pts.push({ date, mileage });
+  });
+  return pts;
+}
+
+function recomputeTotalMileage(car) {
+  const pts = mileagePoints(car);
+  if (pts.length) car.totalMileage = pts[pts.length - 1].mileage;
+}
+
+// 年ごとの走行距離（記録の間は直線補間）
+function mileageStats(car) {
+  const pts = mileagePoints(car);
+  if (pts.length < 2) return null;
+  const t = pts.map(p => Date.parse(p.date)), m = pts.map(p => p.mileage);
+  const first = t[0], last = t[t.length - 1];
+  const odo = x => {
+    for (let i = 1; i < t.length; i++) if (x <= t[i]) return m[i-1] + (m[i] - m[i-1]) * (x - t[i-1]) / (t[i] - t[i-1]);
+    return m[m.length - 1];
+  };
+  const DAY = 86400000, years = [];
+  for (let y = new Date(first).getUTCFullYear(); y <= new Date(last).getUTCFullYear(); y++) {
+    const ys = Date.UTC(y, 0, 1), ye = Date.UTC(y + 1, 0, 1);
+    const s = Math.max(ys, first), e = Math.min(ye, last);
+    if (e <= s) continue;
+    years.push({ year: y, km: Math.round(odo(e) - odo(s)), partial: (e - s) < (ye - ys) - 2 * DAY, from: s, to: e === ye ? ye - DAY : e });
+  }
+  const days = (last - first) / DAY;
+  const total = m[m.length - 1] - m[0];
+  return { years, days, perYear: Math.round(total / days * 365.25), perMonth: Math.round(total / days * 30.44) };
 }
 
 // ── Item CRUD ──
@@ -725,6 +830,8 @@ function renderMain() {
     ${car.missionType ? `<div class="info-row"><span class="info-label">ミッション</span><span class="info-value">${esc(car.missionType)}</span></div>` : ''}
   </div>`;
 
+  html += mileageCardHTML(car);
+
   // メンテナンス項目
   html += `<div class="section-header">
     <h3>メンテナンス項目</h3>
@@ -753,6 +860,93 @@ function renderMain() {
   }
 
   el.innerHTML = html;
+}
+
+// ── 年間走行距離グラフ ──
+let mileageSel = { carId: null, year: null };
+
+function fmtAxisKm(v) {
+  return v >= 10000 ? `${+(v / 10000).toFixed(1)}万` : v.toLocaleString();
+}
+
+function niceStep(x) {
+  const p = Math.pow(10, Math.floor(Math.log10(x)));
+  const n = x / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function fmtMD(ms) { const d = new Date(ms); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }
+
+function mileageCardHTML(car) {
+  const st = mileageStats(car);
+  let html = `<div class="section-header">
+    <h3>年間走行距離</h3>
+    <button class="btn-pill" onclick="showMileageModal('${car.id}')">＋ 走行距離を記録</button>
+  </div><div class="mileage-card">`;
+  if (!st) {
+    return html + `<p class="tpl-lead" style="margin:0">日付を変えて2回以上走行距離を記録すると、年ごとの走行距離がグラフで表示されます。メンテナンス記録の走行距離も使われます。</p></div>`;
+  }
+  const years = st.years;
+  const picked = mileageSel.carId === car.id && years.some(y => y.year === mileageSel.year);
+  const selYear = picked ? mileageSel.year : years[years.length - 1].year;
+  const sel = years.find(y => y.year === selYear);
+
+  // SVG
+  const W = Math.max(260, Math.min(document.documentElement.clientWidth, 640) - 64), H = 170;
+  const padL = 40, padR = 4, padT = 20, padB = 22, pw = W - padL - padR, ph = H - padT - padB;
+  const maxKm = Math.max(...years.map(y => y.km), 1);
+  const step = niceStep(maxKm / 3), top = Math.ceil(maxKm / step) * step;
+  const band = pw / years.length, bw = Math.min(24, band * 0.6);
+  const yOf = v => padT + ph - v / top * ph;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="年ごとの走行距離の棒グラフ" style="font-family:inherit">
+    <defs><pattern id="mhatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" style="fill:var(--accent);opacity:.18"/><line x1="0" y1="0" x2="0" y2="5" style="stroke:var(--accent);stroke-width:2.5"/></pattern></defs>`;
+  for (let v = 0; v <= top; v += step) {
+    const y = yOf(v);
+    svg += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" style="stroke:var(--border);stroke-width:1"/>
+      <text x="${padL - 6}" y="${y + 3.5}" text-anchor="end" style="fill:var(--text2);font-size:10px">${fmtAxisKm(v)}</text>`;
+  }
+  years.forEach((d, i) => {
+    const x = padL + band * i + (band - bw) / 2, h = Math.max(d.km / top * ph, 0), y = padT + ph - h;
+    const r = Math.min(4, h, bw / 2);
+    const dim = picked && d.year !== selYear ? 'opacity:.45;' : '';
+    if (h > 0) {
+      svg += `<path d="M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${y + h}Z"
+        style="${dim}fill:${d.partial ? 'url(#mhatch)' : 'var(--accent)'};${d.partial ? 'stroke:var(--accent);stroke-width:1;' : ''}"/>`;
+    }
+    const label = years.length > 6 ? `'${String(d.year).slice(2)}` : `${d.year}`;
+    svg += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" style="fill:var(--text2);font-size:10px">${label}</text>`;
+    if (d.year === selYear) {
+      svg += `<text x="${x + bw / 2}" y="${y - 6}" text-anchor="middle" style="fill:var(--text);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">${d.km.toLocaleString()}</text>`;
+    }
+    svg += `<rect x="${padL + band * i}" y="0" width="${band}" height="${H}" fill="transparent" style="cursor:pointer"
+      onclick="selectMileageYear('${car.id}',${d.year})"><title>${d.year}年 ${d.km.toLocaleString()} km</title></rect>`;
+  });
+  svg += '</svg>';
+
+  const span = st.days >= 365 ? `${(st.days / 365.25).toFixed(1)}年分` : `${Math.max(1, Math.round(st.days / 30.44))}ヶ月分`;
+  html += `<div class="mstat">
+      <div><div class="mstat-label">年平均</div><div class="mstat-v">${st.perYear.toLocaleString()}<small> km</small></div></div>
+      <div><div class="mstat-label">月平均</div><div class="mstat-v sm">${st.perMonth.toLocaleString()}<small> km</small></div></div>
+      <div class="mstat-span">${span}の記録から</div>
+    </div>
+    <div class="mchart">${svg}</div>
+    <div class="mchart-cap">${sel.year}年　<b>${sel.km.toLocaleString()} km</b>
+      <span>${sel.partial ? `（${fmtMD(sel.from)}〜${fmtMD(sel.to)} の記録）` : '（1年分）'}</span></div>`;
+  if (years.some(y => y.partial)) {
+    html += `<div class="mchart-legend"><svg width="12" height="12"><rect width="12" height="12" rx="2" style="fill:url(#mhatch);stroke:var(--accent);stroke-width:1"/></svg>
+      斜線は記録が1年分に満たない年です</div>`;
+  }
+  html += `<details class="mtable"><summary>年ごとの数値を表示</summary><table>
+    <tr><th>年</th><th>走行距離</th><th>期間</th></tr>
+    ${years.map(y => `<tr><td>${y.year}年</td><td>${y.km.toLocaleString()} km</td><td>${y.partial ? `${fmtMD(y.from)}〜${fmtMD(y.to)}` : '1年分'}</td></tr>`).join('')}
+  </table></details></div>`;
+  return html;
+}
+
+function selectMileageYear(carId, year) {
+  mileageSel = { carId, year };
+  renderMain();
 }
 
 // ═══════════════════════════════════════════════
@@ -824,6 +1018,56 @@ function applyTemplate(carId, engineType, missionType) {
   const items = templateItemsFor(engineType, missionType);
   items.forEach(tpl => addItem(carId, tpl));
   return items.length;
+}
+
+// ── 走行距離モーダル ──
+function showMileageModal(carId) {
+  const car = state.cars.find(c => c.id === carId);
+  if (!car) return;
+  modalCtx.mileageCarId = carId;
+  document.getElementById('mm-date').value = todayStr();
+  document.getElementById('mm-km').value = car.totalMileage || '';
+  renderMileageHistory(car);
+  openModal('modal-mileage');
+}
+
+function renderMileageHistory(car) {
+  const rows = [
+    ...(car.mileageLog || []).map(l => ({ date: l.date, km: l.mileage, logId: l.id, label: '' })),
+    ...car.items.flatMap(i => i.records.map(r => ({ date: r.date, km: r.mileage, label: `メンテ記録：${i.name}` }))),
+  ].sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+  document.getElementById('mm-history').innerHTML = rows.length
+    ? rows.map(r => `<div class="record-item">
+        <div class="record-date"><span>${fmtDate(r.date)}　${r.km.toLocaleString()} km</span>
+          ${r.logId ? `<button class="record-delete" onclick="delMileageLog('${r.logId}')">削除</button>` : ''}</div>
+        ${r.label ? `<div class="record-info">${esc(r.label)}</div>` : ''}
+      </div>`).join('')
+    : '<p style="color:var(--text2);font-size:14px;text-align:center;padding:16px 0">記録がありません</p>';
+}
+
+function saveMileageModal() {
+  const car = state.cars.find(c => c.id === modalCtx.mileageCarId);
+  const date = document.getElementById('mm-date').value;
+  const km = document.getElementById('mm-km').value;
+  if (!car) return;
+  if (!date || km === '') { alert('日付と走行距離を入力してください'); return; }
+  logMileage(car, date, +km);
+  recomputeTotalMileage(car);
+  save();
+  closeModal('modal-mileage');
+  render();
+  checkAndNotify();
+}
+
+function delMileageLog(logId) {
+  const car = state.cars.find(c => c.id === modalCtx.mileageCarId);
+  if (!car || !confirm('この走行距離の記録を削除しますか？')) return;
+  car.mileageLog = car.mileageLog.filter(l => l.id !== logId);
+  recomputeTotalMileage(car);
+  save();
+  renderMileageHistory(car);
+  render();
+  checkAndNotify();
 }
 
 // ── テンプレート追加モーダル（登録済みの車向け） ──
