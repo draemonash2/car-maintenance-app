@@ -15,34 +15,54 @@
       --bg:#f2f2f7;--surface:#fff;--surface2:#f2f2f7;--text:#000;--text2:#6e6e73;
       --accent:#007aff;--danger:#ff3b30;--warning:#ff9500;--success:#34c759;
       --border:#c6c6c8;--shadow:rgba(0,0,0,.1);
+      --hdr1:#0a84ff;--hdr2:#5e5ce6;--hdr-shadow:rgba(10,132,255,.28);
       --safe-top:env(safe-area-inset-top,0px);
       --safe-bottom:env(safe-area-inset-bottom,0px);
     }
     @media(prefers-color-scheme:dark){
-      :root{--bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--text:#fff;--text2:#98989f;--border:#38383a;--shadow:rgba(0,0,0,.5)}
+      :root{--bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--text:#fff;--text2:#98989f;--border:#38383a;--shadow:rgba(0,0,0,.5);--hdr1:#0060df;--hdr2:#3f3cb8;--hdr-shadow:rgba(0,0,0,.6)}
     }
     body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden}
 
     /* ── Header ── */
-    .app-header{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border)}
-    .header-top{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + var(--safe-top)) 16px 4px}
-    .header-top h1{font-size:17px;font-weight:700;letter-spacing:-.3px}
+    .app-header{position:fixed;top:0;left:0;right:0;z-index:100;color:#fff;overflow:hidden;
+      background:linear-gradient(135deg,var(--hdr1) 0%,var(--hdr2) 100%);
+      border-radius:0 0 24px 24px;box-shadow:0 6px 24px var(--hdr-shadow)}
+    .app-header::before{content:'';position:absolute;top:-60%;right:-20%;width:70%;height:180%;pointer-events:none;
+      background:radial-gradient(closest-side,rgba(255,255,255,.22),transparent)}
+    .app-header::after{content:'';position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(255,255,255,.18)}
+    .header-top{position:relative;display:flex;align-items:center;gap:12px;padding:calc(14px + var(--safe-top)) 16px 12px}
+    .brand-mark{width:42px;height:42px;flex-shrink:0;border-radius:13px;display:flex;align-items:center;justify-content:center;
+      background:rgba(255,255,255,.18);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3),0 4px 12px rgba(0,0,0,.12)}
+    .brand-text{flex:1;min-width:0}
+    .brand-eyebrow{font-size:10px;font-weight:700;letter-spacing:1.6px;opacity:.75}
+    .brand-text h1{font-size:21px;font-weight:800;letter-spacing:-.4px;line-height:1.2}
+    .brand-sub{display:inline-flex;align-items:center;gap:6px;margin-top:3px;font-size:12px;font-weight:600;opacity:.92}
+    .brand-sub .alert{background:var(--danger);padding:1px 8px;border-radius:10px}
+    .btn-add{width:40px;height:40px;flex-shrink:0;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
+      background:rgba(255,255,255,.22);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+    .btn-add:active{transform:scale(.92);background:rgba(255,255,255,.35)}
     .btn-icon{width:40px;height:40px;border:none;background:none;color:var(--accent);font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:50%;line-height:1}
     .btn-icon:active{background:var(--surface2)}
 
     /* ── Tabs ── */
-    .car-tabs{display:flex;overflow-x:auto;scrollbar-width:none;padding:4px 12px 10px;gap:8px}
+    .car-tabs{position:relative;display:flex;overflow-x:auto;scrollbar-width:none;padding:6px 14px 14px;gap:8px}
+    .car-tabs:empty{display:none}
     .car-tabs::-webkit-scrollbar{display:none}
-    .car-tab{flex-shrink:0;padding:7px 18px;border-radius:20px;border:none;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;position:relative;white-space:nowrap;font-family:inherit}
-    .car-tab.active{background:var(--accent);color:#fff}
-    .car-tab .badge{position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+    .car-tab{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 16px 7px 12px;border-radius:20px;border:none;background:rgba(255,255,255,.16);color:rgba(255,255,255,.92);font-size:14px;font-weight:600;cursor:pointer;position:relative;white-space:nowrap;font-family:inherit;transition:background .2s,color .2s}
+    .car-tab .tab-icon{font-size:16px;line-height:1}
+    .car-tab.active{background:#fff;color:var(--hdr1);box-shadow:0 3px 10px rgba(0,0,0,.18)}
+    .car-tab .badge{position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 0 0 2px var(--hdr2)}
 
     /* ── Main ── */
     #main-content{padding-top:var(--header-h,110px);padding-bottom:calc(16px + var(--safe-bottom))}
 
     /* ── Car info ── */
     .car-info-card{margin:12px 16px 0;background:var(--surface);border-radius:12px;padding:16px}
-    .car-info-card h2{font-size:19px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+    .car-info-card h2{font-size:19px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:12px}
+    .car-info-card h2 .car-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .car-avatar{width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;
+      background:linear-gradient(135deg,rgba(10,132,255,.14),rgba(94,92,230,.14))}
     .info-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
     .info-row:last-child{border-bottom:none}
     .info-label{font-size:14px;color:var(--text2)}
@@ -106,6 +126,9 @@
     textarea.form-control{resize:none;min-height:72px}
     select.form-control{padding-right:36px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .icon-picker{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+    .icon-opt{aspect-ratio:1;border-radius:10px;border:2px solid transparent;background:var(--surface2);font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+    .icon-opt.selected{border-color:var(--accent);background:rgba(0,122,255,.14)}
     .tpl-check{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);border-radius:10px;cursor:pointer;font-size:14px;line-height:1.4}
 
     /* ── Detail content ── */
@@ -132,8 +155,19 @@
 
 <header class="app-header" id="app-header">
   <div class="header-top">
-    <h1>🚗 車メンテ管理</h1>
-    <button class="btn-icon" onclick="showCarModal(null)" aria-label="車を追加" title="車を追加">＋</button>
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.5-5.5"/><path d="M6.2 11.2l1 .8M12 6.5v1.3M17.8 11.2l-1 .8"/><circle cx="12" cy="17" r="1.6" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="brand-eyebrow">CAR MAINTENANCE</div>
+      <h1>車メンテ管理</h1>
+      <div class="brand-sub" id="brand-sub"></div>
+    </div>
+    <button class="btn-add" onclick="showCarModal(null)" aria-label="車を追加" title="車を追加">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>
   <div class="car-tabs" id="car-tabs"></div>
 </header>
@@ -154,6 +188,11 @@
       <div class="form-group">
         <label class="form-label" for="mc-name">車名 <span style="color:var(--danger)">*</span></label>
         <input class="form-control" id="mc-name" type="text" placeholder="例: トヨタ プリウス" maxlength="50">
+      </div>
+      <div class="form-group">
+        <span class="form-label">アイコン</span>
+        <div class="icon-picker" id="mc-icon-picker" role="radiogroup" aria-label="アイコン"></div>
+        <input type="hidden" id="mc-icon">
       </div>
       <div class="form-group">
         <label class="form-label" for="mc-date">購入時期</label>
@@ -346,6 +385,9 @@ const TEMPLATES = {
     'その他': [],
   },
 };
+const CAR_ICONS = ['🚗','🚙','🚕','🏎️','🚐','🛻','🚚','🚛','🚌','🚓','🚑','🚒','🏍️','🛵','🚜','🚲'];
+const DEFAULT_ICON = '🚗';
+
 let state = { cars: [] };
 let activeCarId = null;
 let modalCtx = {}; // {carId, itemId}
@@ -366,8 +408,8 @@ function uid() {
 }
 
 // ── Car CRUD ──
-function addCar(name, purchaseDate, totalMileage, engineType, missionType) {
-  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', items: [] };
+function addCar(name, purchaseDate, totalMileage, engineType, missionType, icon) {
+  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', icon: icon||DEFAULT_ICON, items: [] };
   state.cars.push(car);
   save();
   return car;
@@ -381,6 +423,7 @@ function updateCar(id, patch) {
   if (patch.totalMileage !== undefined) car.totalMileage = +patch.totalMileage || 0;
   if (patch.engineType  !== undefined) car.engineType  = patch.engineType;
   if (patch.missionType !== undefined) car.missionType = patch.missionType;
+  if (patch.icon        !== undefined) car.icon        = patch.icon;
   save();
 }
 
@@ -520,17 +563,22 @@ function adjustHeaderHeight() {
 function renderTabs() {
   const el = document.getElementById('car-tabs');
   el.innerHTML = '';
+  let totalDue = 0;
   state.cars.forEach(car => {
     const dueCount = car.items.filter(i => {
       const s = getStatus(i, car.totalMileage);
       return s.code === 'danger' || s.code === 'warning';
     }).length;
+    totalDue += dueCount;
     const tab = document.createElement('button');
     tab.className = 'car-tab' + (car.id === activeCarId ? ' active' : '');
-    tab.innerHTML = esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
+    tab.innerHTML = `<span class="tab-icon">${esc(car.icon||DEFAULT_ICON)}</span>` + esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
     tab.onclick = () => { activeCarId = car.id; render(); checkAndNotify(); };
     el.appendChild(tab);
   });
+  document.getElementById('brand-sub').innerHTML = !state.cars.length
+    ? 'まずは車を登録しましょう'
+    : `${state.cars.length}台を管理中` + (totalDue ? `<span class="alert">要対応 ${totalDue}件</span>` : ' · すべて良好');
 }
 
 function renderMain() {
@@ -559,7 +607,7 @@ function renderMain() {
 
   // 車情報
   html += `<div class="car-info-card">
-    <h2>🚗 ${esc(car.name)}
+    <h2><span class="car-avatar">${esc(car.icon||DEFAULT_ICON)}</span><span class="car-name">${esc(car.name)}</span>
       <button class="btn-icon" style="font-size:18px" onclick="showCarModal('${car.id}')" title="編集">✏️</button>
     </h2>
     <div class="info-row"><span class="info-label">購入時期</span><span class="info-value">${esc(car.purchaseDate||'未設定')}</span></div>
@@ -618,6 +666,7 @@ function showCarModal(carId) {
   document.getElementById('mc-mileage').value = car ? car.totalMileage : '';
   document.getElementById('mc-engine').value = car?.engineType || '';
   document.getElementById('mc-mission').value = car?.missionType || '';
+  selectIcon(car?.icon || DEFAULT_ICON);
   document.getElementById('mc-template-wrap').style.display = 'none';
   document.getElementById('mc-delete-wrap').style.display = car ? 'block' : 'none';
   openModal('modal-car');
@@ -631,11 +680,12 @@ function saveCarModal() {
   const totalMileage = document.getElementById('mc-mileage').value;
   const engineType  = document.getElementById('mc-engine').value;
   const missionType = document.getElementById('mc-mission').value;
+  const icon = document.getElementById('mc-icon').value || DEFAULT_ICON;
   if (!name) { alert('車名を入力してください'); return; }
   if (id) {
-    updateCar(id, { name, purchaseDate, totalMileage, engineType, missionType });
+    updateCar(id, { name, purchaseDate, totalMileage, engineType, missionType, icon });
   } else {
-    const car = addCar(name, purchaseDate, totalMileage, engineType, missionType);
+    const car = addCar(name, purchaseDate, totalMileage, engineType, missionType, icon);
     activeCarId = car.id;
     if (document.getElementById('mc-use-template')?.checked) {
       const count = applyTemplate(car.id, engineType, missionType);
@@ -654,6 +704,25 @@ function applyTemplate(carId, engineType, missionType) {
   ];
   items.forEach(tpl => addItem(carId, tpl));
   return items.length;
+}
+
+function renderIconPicker() {
+  const el = document.getElementById('mc-icon-picker');
+  el.innerHTML = CAR_ICONS.map(ic =>
+    `<button type="button" class="icon-opt" role="radio" data-icon="${ic}" aria-label="${ic}">${ic}</button>`).join('');
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.icon-opt');
+    if (b) selectIcon(b.dataset.icon);
+  });
+}
+
+function selectIcon(icon) {
+  document.getElementById('mc-icon').value = icon;
+  document.querySelectorAll('#mc-icon-picker .icon-opt').forEach(b => {
+    const on = b.dataset.icon === icon;
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-checked', on);
+  });
 }
 
 function updateTemplateVis() {
@@ -851,6 +920,7 @@ async function init() {
   if ('serviceWorker' in navigator) {
     try { await navigator.serviceWorker.register('./sw.js'); } catch(e) { console.warn('SW failed', e); }
   }
+  renderIconPicker();
   loadState();
   activeCarId = state.cars[0]?.id ?? null;
   render();
