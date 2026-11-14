@@ -203,7 +203,10 @@
     .record-item:last-child{border-bottom:none}
     .record-date{font-size:14px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
     .record-info{font-size:12px;color:var(--text2);margin-top:2px}
-    .record-edit{font-size:12px;color:var(--accent);border:none;background:none;cursor:pointer;font-family:inherit;padding:0;margin-right:14px}
+    .record-edit{font-size:13px;color:var(--accent);border:none;background:none;cursor:pointer;font-family:inherit;padding:8px 10px;margin:-8px 4px -8px 0}
+    .record-item.editing{background:var(--accent-soft);border-radius:8px;margin:0 -8px;padding-left:8px;padding-right:8px}
+    .edit-banner{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:13px;font-weight:600}
+    .edit-banner button{border:none;background:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:4px 0}
     .record-delete{font-size:12px;color:var(--danger);border:none;background:none;cursor:pointer;font-family:inherit;padding:0}
 
     .divider{height:1px;background:var(--border);margin:16px 0}
@@ -367,10 +370,14 @@
     <div class="modal-handle"></div>
     <div class="modal-header">
       <button class="modal-btn cancel" onclick="closeModal('modal-mileage')">閉じる</button>
-      <span class="modal-title">走行距離を記録</span>
-      <button class="modal-btn save" onclick="saveMileageModal()">保存</button>
+      <span class="modal-title" id="mm-title">走行距離を記録</span>
+      <button class="modal-btn save" id="mm-save" onclick="saveMileageModal()">保存</button>
     </div>
     <div class="modal-body">
+      <div class="edit-banner" id="mm-edit-banner" style="display:none">
+        <span id="mm-edit-label"></span>
+        <button type="button" onclick="cancelMileageEdit()">編集をやめる</button>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="mm-date">日付</label>
@@ -1200,6 +1207,7 @@ function showMileageModal(carId) {
   const car = state.cars.find(c => c.id === carId);
   if (!car) return;
   modalCtx.mileageCarId = carId;
+  setMileageEditMode(null);
   document.getElementById('mm-date').value = todayStr();
   document.getElementById('mm-km').value = car.totalMileage || '';
   document.getElementById('mm-notes').value = '';
@@ -1213,7 +1221,7 @@ function renderMileageHistory(car) {
     ...car.items.flatMap(i => i.records.map(r => ({ date: r.date, km: r.mileage, label: `メンテ記録：${i.name}` }))),
   ].sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
   document.getElementById('mm-history').innerHTML = rows.length
-    ? rows.map(r => `<div class="record-item">
+    ? rows.map(r => `<div class="record-item${r.logId && r.logId === modalCtx.editLogId ? ' editing' : ''}">
         <div class="record-date"><span>${fmtDate(r.date)}　${r.km.toLocaleString()} km</span>
           ${r.logId ? `<span><button class="record-edit" onclick="editMileageLog('${r.logId}')">編集</button><button class="record-delete" onclick="delMileageLog('${r.logId}')">削除</button></span>` : ''}</div>
         ${r.label ? `<div class="record-info" style="white-space:pre-wrap">${esc(r.label)}</div>` : ''}
@@ -1228,7 +1236,14 @@ function saveMileageModal() {
   const notes = document.getElementById('mm-notes').value.trim();
   if (!car) return;
   if (!date || km === '') { alert('日付と走行距離を入力してください'); return; }
-  logMileage(car, date, +km, notes);
+  const editing = modalCtx.editLogId && car.mileageLog.find(l => l.id === modalCtx.editLogId);
+  if (editing) {
+    // 日付を変えた結果、別の記録と同じ日付になったらそちらは置き換える
+    car.mileageLog = car.mileageLog.filter(l => l === editing || l.date !== date);
+    Object.assign(editing, { date, mileage: +km, notes });
+  } else {
+    logMileage(car, date, +km, notes);
+  }
   recomputeTotalMileage(car);
   save();
   closeModal('modal-mileage');
@@ -1236,20 +1251,41 @@ function saveMileageModal() {
   checkAndNotify();
 }
 
+function setMileageEditMode(log) {
+  modalCtx.editLogId = log ? log.id : null;
+  document.getElementById('mm-title').textContent = log ? '記録を編集' : '走行距離を記録';
+  document.getElementById('mm-save').textContent = log ? '更新' : '保存';
+  document.getElementById('mm-edit-banner').style.display = log ? 'flex' : 'none';
+  if (log) document.getElementById('mm-edit-label').textContent = `${fmtDate(log.date)} の記録を編集中`;
+}
+
 function editMileageLog(logId) {
   const car = state.cars.find(c => c.id === modalCtx.mileageCarId);
   const l = car?.mileageLog.find(x => x.id === logId);
   if (!l) return;
+  setMileageEditMode(l);
   document.getElementById('mm-date').value = l.date;
   document.getElementById('mm-km').value = l.mileage;
   document.getElementById('mm-notes').value = l.notes || '';
-  document.querySelector('#modal-mileage .modal-sheet').scrollTop = 0;
+  renderMileageHistory(car);
+  document.querySelector('#modal-mileage .modal-sheet').scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelMileageEdit() {
+  const car = state.cars.find(c => c.id === modalCtx.mileageCarId);
+  if (!car) return;
+  setMileageEditMode(null);
+  document.getElementById('mm-date').value = todayStr();
+  document.getElementById('mm-km').value = car.totalMileage || '';
+  document.getElementById('mm-notes').value = '';
+  renderMileageHistory(car);
 }
 
 function delMileageLog(logId) {
   const car = state.cars.find(c => c.id === modalCtx.mileageCarId);
   if (!car || !confirm('この走行距離の記録を削除しますか？')) return;
   car.mileageLog = car.mileageLog.filter(l => l.id !== logId);
+  if (modalCtx.editLogId === logId) cancelMileageEdit();
   recomputeTotalMileage(car);
   save();
   renderMileageHistory(car);
