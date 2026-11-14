@@ -129,6 +129,10 @@
     .icon-picker{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
     .icon-opt{aspect-ratio:1;border-radius:10px;border:2px solid transparent;background:var(--surface2);font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
     .icon-opt.selected{border-color:var(--accent);background:rgba(0,122,255,.14)}
+    .icon-glyph{display:inline-block;line-height:1}
+    .color-picker{display:flex;flex-wrap:wrap;gap:10px}
+    .color-opt{width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;padding:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+    .color-opt.selected{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
     .tpl-check{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);border-radius:10px;cursor:pointer;font-size:14px;line-height:1.4}
 
     /* ── Detail content ── */
@@ -193,6 +197,11 @@
         <span class="form-label">アイコン</span>
         <div class="icon-picker" id="mc-icon-picker" role="radiogroup" aria-label="アイコン"></div>
         <input type="hidden" id="mc-icon">
+      </div>
+      <div class="form-group">
+        <span class="form-label">アイコンカラー <span id="mc-color-label" style="color:var(--text)"></span></span>
+        <div class="color-picker" id="mc-color-picker" role="radiogroup" aria-label="アイコンカラー"></div>
+        <input type="hidden" id="mc-icon-color">
       </div>
       <div class="form-group">
         <label class="form-label" for="mc-date">購入時期</label>
@@ -387,6 +396,22 @@ const TEMPLATES = {
 };
 const CAR_ICONS = ['🚗','🚙','🚕','🏎️','🚐','🛻','🚚','🚛','🚌','🚓','🚑','🚒','🏍️','🛵','🚜','🚲'];
 const DEFAULT_ICON = '🚗';
+const ICON_COLORS = [
+  { key: '',       label: 'オリジナル', swatch: 'conic-gradient(#ff3b30,#ffcc00,#34c759,#0a84ff,#af52de,#ff3b30)', filter: 'none' },
+  { key: 'white',  label: 'ホワイト',   swatch: '#f5f5f7', filter: 'grayscale(1) brightness(2.3) contrast(.7)' },
+  { key: 'silver', label: 'シルバー',   swatch: '#b8bcc2', filter: 'grayscale(1) brightness(1.4) contrast(.85)' },
+  { key: 'black',  label: 'ブラック',   swatch: '#1c1c1e', filter: 'grayscale(1) brightness(.5) contrast(1.3)' },
+  { key: 'red',    label: 'レッド',     swatch: '#e5302a', filter: 'grayscale(1) sepia(1) saturate(9) hue-rotate(-42deg) brightness(.95)' },
+  { key: 'orange', label: 'オレンジ',   swatch: '#ff8a00', filter: 'grayscale(1) sepia(1) saturate(8) hue-rotate(-20deg) brightness(1.1)' },
+  { key: 'yellow', label: 'イエロー',   swatch: '#ffd60a', filter: 'grayscale(1) sepia(1) saturate(7) hue-rotate(5deg) brightness(1.3)' },
+  { key: 'green',  label: 'グリーン',   swatch: '#30b350', filter: 'grayscale(1) sepia(1) saturate(5) hue-rotate(70deg) brightness(.9)' },
+  { key: 'blue',   label: 'ブルー',     swatch: '#0a84ff', filter: 'grayscale(1) sepia(1) saturate(8) hue-rotate(180deg) brightness(.85)' },
+  { key: 'purple', label: 'パープル',   swatch: '#9b51e0', filter: 'grayscale(1) sepia(1) saturate(6) hue-rotate(225deg) brightness(.9)' },
+  { key: 'pink',   label: 'ピンク',     swatch: '#ff6fae', filter: 'grayscale(1) sepia(1) saturate(5) hue-rotate(290deg) brightness(1.15)' },
+];
+function iconFilter(key) {
+  return (ICON_COLORS.find(c => c.key === key) || ICON_COLORS[0]).filter;
+}
 
 let state = { cars: [] };
 let activeCarId = null;
@@ -408,8 +433,8 @@ function uid() {
 }
 
 // ── Car CRUD ──
-function addCar(name, purchaseDate, totalMileage, engineType, missionType, icon) {
-  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', icon: icon||DEFAULT_ICON, items: [] };
+function addCar(name, purchaseDate, totalMileage, engineType, missionType, icon, iconColor) {
+  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', icon: icon||DEFAULT_ICON, iconColor: iconColor||'', items: [] };
   state.cars.push(car);
   save();
   return car;
@@ -424,6 +449,7 @@ function updateCar(id, patch) {
   if (patch.engineType  !== undefined) car.engineType  = patch.engineType;
   if (patch.missionType !== undefined) car.missionType = patch.missionType;
   if (patch.icon        !== undefined) car.icon        = patch.icon;
+  if (patch.iconColor   !== undefined) car.iconColor   = patch.iconColor;
   save();
 }
 
@@ -572,7 +598,7 @@ function renderTabs() {
     totalDue += dueCount;
     const tab = document.createElement('button');
     tab.className = 'car-tab' + (car.id === activeCarId ? ' active' : '');
-    tab.innerHTML = `<span class="tab-icon">${esc(car.icon||DEFAULT_ICON)}</span>` + esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
+    tab.innerHTML = `<span class="tab-icon" style="filter:${iconFilter(car.iconColor)}">${esc(car.icon||DEFAULT_ICON)}</span>` + esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
     tab.onclick = () => { activeCarId = car.id; render(); checkAndNotify(); };
     el.appendChild(tab);
   });
@@ -607,7 +633,7 @@ function renderMain() {
 
   // 車情報
   html += `<div class="car-info-card">
-    <h2><span class="car-avatar">${esc(car.icon||DEFAULT_ICON)}</span><span class="car-name">${esc(car.name)}</span>
+    <h2><span class="car-avatar"><span class="icon-glyph" style="filter:${iconFilter(car.iconColor)}">${esc(car.icon||DEFAULT_ICON)}</span></span><span class="car-name">${esc(car.name)}</span>
       <button class="btn-icon" style="font-size:18px" onclick="showCarModal('${car.id}')" title="編集">✏️</button>
     </h2>
     <div class="info-row"><span class="info-label">購入時期</span><span class="info-value">${esc(car.purchaseDate||'未設定')}</span></div>
@@ -667,6 +693,7 @@ function showCarModal(carId) {
   document.getElementById('mc-engine').value = car?.engineType || '';
   document.getElementById('mc-mission').value = car?.missionType || '';
   selectIcon(car?.icon || DEFAULT_ICON);
+  selectIconColor(car?.iconColor || '');
   document.getElementById('mc-template-wrap').style.display = 'none';
   document.getElementById('mc-delete-wrap').style.display = car ? 'block' : 'none';
   openModal('modal-car');
@@ -681,11 +708,12 @@ function saveCarModal() {
   const engineType  = document.getElementById('mc-engine').value;
   const missionType = document.getElementById('mc-mission').value;
   const icon = document.getElementById('mc-icon').value || DEFAULT_ICON;
+  const iconColor = document.getElementById('mc-icon-color').value;
   if (!name) { alert('車名を入力してください'); return; }
   if (id) {
-    updateCar(id, { name, purchaseDate, totalMileage, engineType, missionType, icon });
+    updateCar(id, { name, purchaseDate, totalMileage, engineType, missionType, icon, iconColor });
   } else {
-    const car = addCar(name, purchaseDate, totalMileage, engineType, missionType, icon);
+    const car = addCar(name, purchaseDate, totalMileage, engineType, missionType, icon, iconColor);
     activeCarId = car.id;
     if (document.getElementById('mc-use-template')?.checked) {
       const count = applyTemplate(car.id, engineType, missionType);
@@ -709,11 +737,31 @@ function applyTemplate(carId, engineType, missionType) {
 function renderIconPicker() {
   const el = document.getElementById('mc-icon-picker');
   el.innerHTML = CAR_ICONS.map(ic =>
-    `<button type="button" class="icon-opt" role="radio" data-icon="${ic}" aria-label="${ic}">${ic}</button>`).join('');
+    `<button type="button" class="icon-opt" role="radio" data-icon="${ic}" aria-label="${ic}"><span class="icon-glyph">${ic}</span></button>`).join('');
   el.addEventListener('click', e => {
     const b = e.target.closest('.icon-opt');
     if (b) selectIcon(b.dataset.icon);
   });
+
+  const cp = document.getElementById('mc-color-picker');
+  cp.innerHTML = ICON_COLORS.map(c =>
+    `<button type="button" class="color-opt" role="radio" data-color="${c.key}" aria-label="${c.label}" title="${c.label}" style="background:${c.swatch}"></button>`).join('');
+  cp.addEventListener('click', e => {
+    const b = e.target.closest('.color-opt');
+    if (b) selectIconColor(b.dataset.color);
+  });
+}
+
+function selectIconColor(key) {
+  const c = ICON_COLORS.find(x => x.key === key) || ICON_COLORS[0];
+  document.getElementById('mc-icon-color').value = c.key;
+  document.getElementById('mc-color-label').textContent = c.label;
+  document.querySelectorAll('#mc-color-picker .color-opt').forEach(b => {
+    const on = b.dataset.color === c.key;
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-checked', on);
+  });
+  document.querySelectorAll('#mc-icon-picker .icon-glyph').forEach(g => g.style.filter = c.filter);
 }
 
 function selectIcon(icon) {
