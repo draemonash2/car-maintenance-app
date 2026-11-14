@@ -241,8 +241,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="mc-engine">エンジン種別</label>
-          <select class="form-control" id="mc-engine" onchange="updateTemplateVis()">
-            <option value="">未設定</option>
+          <select class="form-control" id="mc-engine">
             <option value="ガソリン">ガソリン</option>
             <option value="ハイブリッド">ハイブリッド</option>
             <option value="ディーゼル">ディーゼル</option>
@@ -252,8 +251,7 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="mc-mission">ミッション種別</label>
-          <select class="form-control" id="mc-mission" onchange="updateTemplateVis()">
-            <option value="">未設定</option>
+          <select class="form-control" id="mc-mission">
             <option value="AT">AT（オートマ）</option>
             <option value="CVT">CVT</option>
             <option value="MT">MT（マニュアル）</option>
@@ -265,9 +263,7 @@
         <label class="tpl-check">
           <input type="checkbox" id="mc-use-template" checked style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0">
           <span>テンプレートからメンテナンス項目を<br>自動追加する</span>
-        </label>
-        <p id="mc-template-hint" class="tpl-lead" style="display:none;margin:6px 2px 0">エンジン種別が未設定の場合は、ガソリン車の標準項目を追加します。</p>
-      </div>
+        </label>      </div>
       <div id="mc-delete-wrap" style="display:none; margin-top:24px">
         <div class="divider" style="margin:0 0 16px"></div>
         <button class="btn btn-danger" onclick="deleteCarConfirm()">この車を削除</button>
@@ -477,6 +473,8 @@ const ITEM_INFO = {
 };
 const CAR_ICONS = ['🚗','🚙','🚕','🏎️','🚐','🛻','🚚','🚛','🚌','🚓','🚑','🚒','🏍️','🛵','🚜','🚲'];
 const DEFAULT_ICON = '🚗';
+const DEFAULT_ENGINE = 'ガソリン';
+const DEFAULT_MISSION = 'AT';
 const ICON_COLORS = [
   { key: '',       label: 'オリジナル', swatch: 'conic-gradient(#ff3b30,#ffcc00,#34c759,#0a84ff,#af52de,#ff3b30)', filter: 'none' },
   { key: 'white',  label: 'ホワイト',   swatch: '#f5f5f7', filter: 'grayscale(1) brightness(2.3) contrast(.7)' },
@@ -503,6 +501,10 @@ function loadState() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) { const d = JSON.parse(raw); state = { cars: d.cars || [] }; }
   } catch(e) { state = { cars: [] }; }
+  state.cars.forEach(c => {
+    c.engineType  ||= DEFAULT_ENGINE;
+    c.missionType ||= DEFAULT_MISSION;
+  });
 }
 
 function save() {
@@ -515,7 +517,7 @@ function uid() {
 
 // ── Car CRUD ──
 function addCar(name, purchaseDate, totalMileage, engineType, missionType, icon, iconColor) {
-  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||'', missionType: missionType||'', icon: icon||DEFAULT_ICON, iconColor: iconColor||'', items: [] };
+  const car = { id: uid(), name, purchaseDate, totalMileage: +totalMileage||0, engineType: engineType||DEFAULT_ENGINE, missionType: missionType||DEFAULT_MISSION, icon: icon||DEFAULT_ICON, iconColor: iconColor||'', items: [] };
   state.cars.push(car);
   save();
   return car;
@@ -774,11 +776,11 @@ function showCarModal(carId) {
   document.getElementById('mc-name').value = car?.name || '';
   document.getElementById('mc-date').value = car?.purchaseDate || '';
   document.getElementById('mc-mileage').value = car ? car.totalMileage : '';
-  document.getElementById('mc-engine').value = car?.engineType || '';
-  document.getElementById('mc-mission').value = car?.missionType || '';
+  document.getElementById('mc-engine').value = car?.engineType || DEFAULT_ENGINE;
+  document.getElementById('mc-mission').value = car?.missionType || DEFAULT_MISSION;
   selectIcon(car?.icon || DEFAULT_ICON);
   selectIconColor(car?.iconColor || '');
-  updateTemplateVis();
+  document.getElementById('mc-template-wrap').style.display = car ? 'none' : 'block';
   document.getElementById('mc-delete-wrap').style.display = car ? 'block' : 'none';
   openModal('modal-car');
   setTimeout(() => document.getElementById('mc-name').focus(), 350);
@@ -809,12 +811,10 @@ function saveCarModal() {
   checkAndNotify();
 }
 
-const DEFAULT_ENGINE = 'ガソリン';
-
 function templateItemsFor(engineType, missionType) {
   const seen = new Set();
   return [
-    ...(TEMPLATES.engine[engineType || DEFAULT_ENGINE] || []),
+    ...(TEMPLATES.engine[engineType] || []),
     ...(TEMPLATES.mission[missionType] || []),
     ...TEMPLATES.common,
   ].filter(t => !seen.has(t.name) && seen.add(t.name));
@@ -841,9 +841,7 @@ function showTemplateModal(carId) {
   const existing = new Set(car.items.map(i => i.name));
   const all = templateItemsFor(car.engineType, car.missionType);
   const tpls = [...all.filter(t => !existing.has(t.name)), ...all.filter(t => existing.has(t.name))];
-  const typeLabel = [car.engineType || `${DEFAULT_ENGINE}（未設定）`, car.missionType].filter(Boolean).join(' / ');
-  let html = `<p class="tpl-lead">${esc(typeLabel)} 向けの項目です。追加したい項目を選んでください。</p>`;
-  if (!car.engineType) html += `<p class="tpl-lead">エンジン種別が未設定のため、ガソリン車の標準項目を表示しています。車の編集で種別を設定すると、その車に合った項目になります。</p>`;
+  let html = `<p class="tpl-lead">${esc(car.engineType)} / ${esc(car.missionType)} 向けの項目です。追加したい項目を選んでください。</p>`;
   html += '<div class="tpl-list">' + tpls.map((t, i) => {
     const has = existing.has(t.name);
     return `<label class="tpl-row${has ? ' disabled' : ''}">
@@ -915,13 +913,6 @@ function selectIcon(icon) {
     b.classList.toggle('selected', on);
     b.setAttribute('aria-checked', on);
   });
-}
-
-function updateTemplateVis() {
-  const isNew = !document.getElementById('mc-id').value;
-  document.getElementById('mc-template-wrap').style.display = isNew ? 'block' : 'none';
-  document.getElementById('mc-template-hint').style.display =
-    isNew && !document.getElementById('mc-engine').value ? 'block' : 'none';
 }
 
 function deleteCarConfirm() {
