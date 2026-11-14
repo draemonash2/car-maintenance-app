@@ -1,6 +1,6 @@
 // Service Worker for カーメンテナンス
-const CACHE = 'car-maint-v11';
-const ASSETS = ['./', './index.html', './manifest.json', './icon.svg', './icon-maskable.svg'];
+const CACHE = 'car-maint-v12';
+const ASSETS = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 // インストール時にキャッシュ（ブラウザのHTTPキャッシュを経由せず最新を取得）
 self.addEventListener('install', e => {
@@ -43,8 +43,8 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(data.title || 'カーメンテナンス', {
       body: data.body || 'メンテナンスの確認をしてください',
-      icon: './icon.svg',
-      badge: './icon.svg',
+      icon: './icon-192.png',
+      badge: './icon-192.png',
       tag: data.tag || 'maintenance',
       data,
     })
@@ -67,8 +67,8 @@ self.addEventListener('message', e => {
     const showPromises = showItems.map(item =>
       self.registration.showNotification(item.title, {
         body: item.body,
-        icon: './icon.svg',
-        badge: './icon.svg',
+        icon: './icon-192.png',
+        badge: './icon-192.png',
         tag: item.tag,
         renotify: false,
         requireInteraction: false,
