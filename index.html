@@ -195,6 +195,19 @@
     .data-last{font-size:13px;color:var(--text2);background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:12px}
     .data-last b{color:var(--text)}
     .data-last.warn b{color:var(--warning)}
+    .status-dot.muted{opacity:.35}
+    .resv-chip{display:inline-block;vertical-align:2px;margin-left:8px;font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+    .resv-chip.expired{background:var(--danger-soft);color:var(--danger)}
+    .brand-sub .resv{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);padding:1px 8px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+    .resv-box{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+    .resv-box.expired{background:var(--danger-soft)}
+    .resv-title{font-size:13px;font-weight:700;margin-bottom:4px}
+    .resv-box.expired .resv-title{color:var(--danger)}
+    .resv-desc{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px}
+    .resv-row{display:flex;gap:8px;align-items:center}
+    .resv-row .form-control{flex:1;min-width:0;padding:8px 10px;font-size:15px}
+    .resv-row .btn-pill{flex-shrink:0;padding:9px 12px}
+    .resv-cancel{border:none;background:none;color:var(--danger);font-size:12px;font-family:inherit;cursor:pointer;padding:8px 0 0}
     .item-desc{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
     .item-desc-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
     .item-desc p{font-size:13px;line-height:1.7}
@@ -722,9 +735,53 @@ function addRecord(carId, itemId, date, mileage, notes) {
   if (!item) return;
   const rec = { id: uid(), date, mileage: +mileage, notes: notes||'' };
   item.records.push(rec);
+  delete item.reservation;
   if (+mileage > car.totalMileage) car.totalMileage = +mileage;
   save();
   return rec;
+}
+
+// ── 予約済み ──
+// 予約日を入れた場合、その日を過ぎたら予約の効果は切れる（記録忘れ・延期に気づけるように）
+function reservationState(item) {
+  const r = item.reservation;
+  if (!r) return null;
+  return r.date && todayStr() > r.date ? 'expired' : 'active';
+}
+
+function reservationChip(item, rs) {
+  const d = item.reservation.date ? ` ${+item.reservation.date.slice(5, 7)}/${+item.reservation.date.slice(8, 10)}` : '';
+  return rs === 'expired'
+    ? `<span class="resv-chip expired">予約日${d}経過</span>`
+    : `<span class="resv-chip">予約済み${d}</span>`;
+}
+
+function saveReservation() {
+  const car = state.cars.find(c => c.id === modalCtx.carId);
+  const item = car?.items.find(i => i.id === modalCtx.itemId);
+  if (!item) return;
+  item.reservation = { date: document.getElementById('resv-date').value || '', since: todayStr() };
+  save();
+  showDetailModal(car.id, item.id);
+  render();
+  checkAndNotify();
+}
+
+function cancelReservation() {
+  const car = state.cars.find(c => c.id === modalCtx.carId);
+  const item = car?.items.find(i => i.id === modalCtx.itemId);
+  if (!item) return;
+  delete item.reservation;
+  save();
+  showDetailModal(car.id, item.id);
+  render();
+  checkAndNotify();
+}
+
+// バッジ・通知・「要対応」の対象か
+function needsAttention(item, car) {
+  const code = getStatus(item, car.totalMileage).code;
+  return (code === 'danger' || code === 'warning') && reservationState(item) !== 'active';
 }
 
 function deleteRecord(carId, itemId, recordId) {
@@ -814,13 +871,11 @@ function adjustHeaderHeight() {
 function renderTabs() {
   const el = document.getElementById('car-tabs');
   el.innerHTML = '';
-  let totalDue = 0;
+  let totalDue = 0, totalReserved = 0;
   state.cars.forEach(car => {
-    const dueCount = car.items.filter(i => {
-      const s = getStatus(i, car.totalMileage);
-      return s.code === 'danger' || s.code === 'warning';
-    }).length;
+    const dueCount = car.items.filter(i => needsAttention(i, car)).length;
     totalDue += dueCount;
+    totalReserved += car.items.filter(i => reservationState(i) === 'active').length;
     const tab = document.createElement('button');
     tab.className = 'car-tab' + (car.id === activeCarId ? ' active' : '');
     tab.innerHTML = `<span class="tab-icon" style="filter:${iconFilter(car.iconColor)}">${esc(car.icon||DEFAULT_ICON)}</span>` + esc(car.name) + (dueCount ? `<span class="badge">${dueCount}</span>` : '');
@@ -829,7 +884,8 @@ function renderTabs() {
   });
   document.getElementById('brand-sub').innerHTML = !state.cars.length
     ? 'まずは車を登録しましょう'
-    : `${state.cars.length}台を管理中` + (totalDue ? `<span class="alert">要対応 ${totalDue}件</span>` : ' · すべて良好');
+    : `${state.cars.length}台を管理中` + (totalDue ? `<span class="alert">要対応 ${totalDue}件</span>` : totalReserved ? '' : ' · すべて良好')
+      + (totalReserved ? `<span class="resv">予約済み ${totalReserved}件</span>` : '');
 }
 
 function renderMain() {
@@ -885,10 +941,11 @@ function renderMain() {
     html += `<div class="items-list">`;
     car.items.forEach(item => {
       const s = getStatus(item, car.totalMileage);
+      const rs = reservationState(item);
       html += `<div class="item-row" onclick="showDetailModal('${car.id}','${item.id}')">
-        <div class="status-dot s-${s.code}"></div>
+        <div class="status-dot s-${s.code}${rs === 'active' ? ' muted' : ''}"></div>
         <div class="item-info">
-          <div class="item-name">${esc(item.name)}</div>
+          <div class="item-name">${esc(item.name)}${rs ? reservationChip(item, rs) : ''}</div>
           <div class="item-next">${esc(nextText(s,item))}</div>
         </div>
         <div class="item-chevron">›</div>
@@ -1174,6 +1231,8 @@ function sanitizeBackup(raw) {
       intervalMonths: optNum(i.intervalMonths),
       intervalKm: optNum(i.intervalKm),
       notes: str(i.notes, 1000),
+      ...(i.reservation && typeof i.reservation === 'object'
+        ? { reservation: { date: date(i.reservation.date) || '', since: date(i.reservation.since) || '' } } : {}),
       records: (Array.isArray(i.records) ? i.records : [])
         .filter(r => date(r?.date)).map(r => ({ id: id(r.id), date: r.date, mileage: num(r.mileage), notes: str(r.notes, 1000) })),
     })),
@@ -1475,7 +1534,9 @@ function showDetailModal(carId, itemId) {
   document.getElementById('modal-detail-content').innerHTML = `
     <div style="text-align:center;margin-bottom:16px">
       <span class="status-badge ${sbClass[s.code]}">${statusLabel[s.code]||'-'}</span>
+      ${reservationState(item) ? reservationChip(item, reservationState(item)) : ''}
     </div>
+    ${reservationBoxHTML(item)}
     ${ITEM_INFO[item.name] ? `<div class="item-desc"><div class="item-desc-title">📖 この項目について</div><p>${esc(ITEM_INFO[item.name])}</p></div>` : ''}
     <div class="detail-row"><span class="detail-label">交換間隔</span><span class="detail-value">${esc(intervalParts.join(' / ')||'なし')}</span></div>
     <div class="detail-row"><span class="detail-label">次回（日付）</span><span class="detail-value">${s.nextDate ? fmtDate(s.nextDate) : '-'}</span></div>
@@ -1487,6 +1548,25 @@ function showDetailModal(carId, itemId) {
     ${histHtml}`;
 
   openModal('modal-detail');
+}
+
+function reservationBoxHTML(item) {
+  const r = item.reservation, rs = reservationState(item);
+  const head = !r ? 'メンテナンスの予約'
+    : rs === 'expired' ? `予約日（${fmtDate(r.date)}）を過ぎています`
+    : r.date ? `${fmtDate(r.date)} に予約済み` : '予約済み（日付未定）';
+  return `<div class="resv-box${rs === 'expired' ? ' expired' : ''}">
+    <div class="resv-title">${esc(head)}</div>
+    <p class="resv-desc">${!r
+      ? '予約済みにすると、メンテナンスを記録するまでバッジと通知の対象から外れます。予約日を入れた場合は、その日を過ぎるとまた表示されます。'
+      : rs === 'expired' ? 'メンテナンスが済んでいれば記録してください。延期した場合は予約日を変更してください。'
+      : 'メンテナンスを記録すると予約は自動で外れます。'}</p>
+    <div class="resv-row">
+      <input type="date" id="resv-date" class="form-control" value="${r?.date || ''}" aria-label="予約日（任意）">
+      <button class="btn-pill" onclick="saveReservation()">${r ? '予約日を変更' : '予約済みにする'}</button>
+    </div>
+    ${r ? '<button class="resv-cancel" onclick="cancelReservation()">予約を取り消す</button>' : ''}
+  </div>`;
 }
 
 function delRec(carId, itemId, recId) {
@@ -1545,7 +1625,7 @@ async function checkAndNotify() {
     for (const item of car.items) {
       const s = getStatus(item, car.totalMileage);
       const tag = `maint-${item.id}`;
-      if (s.code === 'danger' || s.code === 'warning') {
+      if (needsAttention(item, car)) {
         dueCount++;
         if (notified[item.id]) nextNotified[item.id] = notified[item.id];
         else dueItems.push({ id: item.id, title: `${car.name}`, body: `${item.name}: ${nextText(s,item)}`, tag });
