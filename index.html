@@ -145,6 +145,19 @@
     .sb-warning{background:rgba(255,149,0,.15);color:var(--warning)}
     .sb-danger{background:rgba(255,59,48,.15);color:var(--danger)}
     .sb-none{background:var(--surface2);color:var(--text2)}
+    .btn-pill{border:none;background:rgba(0,122,255,.1);color:var(--accent);font-size:13px;font-weight:600;padding:6px 12px;border-radius:16px;cursor:pointer;font-family:inherit}
+    .btn-pill:active{opacity:.7}
+    .tpl-lead{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px}
+    .tpl-list{background:var(--surface2);border-radius:12px;overflow:hidden}
+    .tpl-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+    .tpl-row:last-child{border-bottom:none}
+    .tpl-row input{width:20px;height:20px;accent-color:var(--accent);flex-shrink:0}
+    .tpl-row-main{flex:1;min-width:0;display:flex;flex-direction:column}
+    .tpl-row-name{font-size:15px;font-weight:500}
+    .tpl-row-sub{font-size:12px;color:var(--text2);margin-top:1px}
+    .tpl-row.disabled{cursor:default}
+    .tpl-row.disabled .tpl-row-main{opacity:.45}
+    .tpl-row-tag{font-size:11px;font-weight:600;color:var(--text2);background:var(--surface);padding:2px 8px;border-radius:10px;flex-shrink:0}
     .item-desc{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:12px}
     .item-desc-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
     .item-desc p{font-size:13px;line-height:1.7}
@@ -285,6 +298,21 @@
         <div class="divider" style="margin:0 0 16px"></div>
         <button class="btn btn-danger" onclick="deleteItemConfirm()">この項目を削除</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== テンプレート追加モーダル ===== -->
+<div class="modal-overlay" id="modal-tpl" onclick="onOverlayClick(event,'modal-tpl')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-btn cancel" onclick="closeModal('modal-tpl')">キャンセル</button>
+      <span class="modal-title">テンプレートから追加</span>
+      <button class="modal-btn save" id="modal-tpl-save" onclick="saveTemplateModal()">追加</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-tpl-content"></div>
     </div>
   </div>
 </div>
@@ -686,7 +714,10 @@ function renderMain() {
   // メンテナンス項目
   html += `<div class="section-header">
     <h3>メンテナンス項目</h3>
-    <button class="btn-icon" style="font-size:24px" onclick="showItemModal('${car.id}',null)">＋</button>
+    <div style="display:flex;align-items:center;gap:4px">
+      <button class="btn-pill" onclick="showTemplateModal('${car.id}')">📋 テンプレート</button>
+      <button class="btn-icon" style="font-size:24px" onclick="showItemModal('${car.id}',null)" aria-label="項目を追加">＋</button>
+    </div>
   </div>`;
 
   if (!car.items.length) {
@@ -766,14 +797,71 @@ function saveCarModal() {
   checkAndNotify();
 }
 
-function applyTemplate(carId, engineType, missionType) {
-  const items = [
+function templateItemsFor(engineType, missionType) {
+  return [
     ...(TEMPLATES.engine[engineType]  || []),
     ...(TEMPLATES.mission[missionType] || []),
     ...TEMPLATES.common.filter(t => !t.skipEngines?.includes(engineType)),
   ];
+}
+
+function applyTemplate(carId, engineType, missionType) {
+  const items = templateItemsFor(engineType, missionType);
   items.forEach(tpl => addItem(carId, tpl));
   return items.length;
+}
+
+// ── テンプレート追加モーダル（登録済みの車向け） ──
+function intervalText(t) {
+  const p = [];
+  if (t.intervalMonths) p.push(t.intervalMonths % 12 === 0 ? `${t.intervalMonths / 12}年` : `${t.intervalMonths}ヶ月`);
+  if (t.intervalKm) p.push(`${t.intervalKm.toLocaleString()}km`);
+  return p.join(' / ') || '間隔なし';
+}
+
+function showTemplateModal(carId) {
+  const car = state.cars.find(c => c.id === carId);
+  if (!car) return;
+  modalCtx.tplCarId = carId;
+  const existing = new Set(car.items.map(i => i.name));
+  const all = templateItemsFor(car.engineType, car.missionType);
+  const tpls = [...all.filter(t => !existing.has(t.name)), ...all.filter(t => existing.has(t.name))];
+  const typeLabel = [car.engineType, car.missionType].filter(Boolean).join(' / ');
+  let html = typeLabel
+    ? `<p class="tpl-lead">${esc(typeLabel)} 向けの項目です。追加したい項目を選んでください。</p>`
+    : `<p class="tpl-lead">エンジン種別・ミッション種別が未設定のため、共通の項目のみ表示しています。車の編集で種別を設定すると、その車に合った項目が表示されます。</p>`;
+  html += '<div class="tpl-list">' + tpls.map((t, i) => {
+    const has = existing.has(t.name);
+    return `<label class="tpl-row${has ? ' disabled' : ''}">
+      <input type="checkbox" data-idx="${i}" ${has ? 'disabled' : 'checked'}>
+      <span class="tpl-row-main"><span class="tpl-row-name">${esc(t.name)}</span><span class="tpl-row-sub">${esc(intervalText(t))}</span></span>
+      ${has ? '<span class="tpl-row-tag">登録済み</span>' : ''}
+    </label>`;
+  }).join('') + '</div>';
+  document.getElementById('modal-tpl-content').innerHTML = html;
+  modalCtx.tplItems = tpls;
+  updateTplCount();
+  document.getElementById('modal-tpl-content').onchange = updateTplCount;
+  openModal('modal-tpl');
+}
+
+function updateTplCount() {
+  const n = document.querySelectorAll('#modal-tpl-content input:checked:not(:disabled)').length;
+  const btn = document.getElementById('modal-tpl-save');
+  btn.textContent = n ? `追加（${n}）` : '追加';
+  btn.disabled = !n;
+  btn.style.opacity = n ? 1 : .4;
+}
+
+function saveTemplateModal() {
+  const carId = modalCtx.tplCarId;
+  const picked = [...document.querySelectorAll('#modal-tpl-content input:checked:not(:disabled)')]
+    .map(cb => modalCtx.tplItems[+cb.dataset.idx]);
+  if (!picked.length) return;
+  picked.forEach(t => addItem(carId, t));
+  closeModal('modal-tpl');
+  render();
+  checkAndNotify();
 }
 
 function renderIconPicker() {
