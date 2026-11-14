@@ -1,5 +1,5 @@
 // Service Worker for カーメンテナンス
-const CACHE = 'car-maint-v6';
+const CACHE = 'car-maint-v7';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg', './icon-maskable.svg'];
 
 // インストール時にキャッシュ

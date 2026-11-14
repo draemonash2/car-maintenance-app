@@ -402,7 +402,6 @@ const TEMPLATES = {
       { name: '補機バッテリー（12V）',   intervalMonths: 36, intervalKm: null,  notes: 'ハイブリッド車は早めの点検推奨' },
       { name: '駆動用バッテリー点検',    intervalMonths: 12, intervalKm: null,  notes: '' },
       { name: 'エアコンフィルター',      intervalMonths: 12, intervalKm: null,  notes: '' },
-      { name: 'スパークプラグ',          intervalMonths: null, intervalKm: 100000, notes: 'イリジウムプラグが一般的' },
     ],
     'ディーゼル': [
       { name: 'エンジンオイル',                        intervalMonths: 6,  intervalKm: 5000,  notes: 'ディーゼル指定オイル（DL-1等）を使用' },
@@ -428,19 +427,20 @@ const TEMPLATES = {
       { name: 'ブレーキフルード',    intervalMonths: 24, intervalKm: null, notes: '' },
       { name: 'クーラント（冷却水）',intervalMonths: 48, intervalKm: null, notes: '' },
       { name: 'エアコンフィルター',  intervalMonths: 12, intervalKm: null, notes: '' },
-      { name: 'スパークプラグ',      intervalMonths: 24, intervalKm: 30000, notes: '' },
     ],
   },
   mission: {
     'AT':   [{ name: 'ATF（オートマオイル）', intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正ATFを推奨' }],
     'CVT':  [{ name: 'CVTフルード',           intervalMonths: 48, intervalKm: 40000, notes: 'メーカー純正CVTフルードを推奨' }],
     'MT':   [{ name: 'ミッションオイル',       intervalMonths: 36, intervalKm: 30000, notes: '' }],
-    'その他': [{ name: 'ミッションオイル',     intervalMonths: 36, intervalKm: 30000, notes: '車種指定のオイルを確認' }],
+    'その他': [],
   },
-  // エンジン・ミッション種別に関係なく追加（skipEngines の種別は除外）
+  // 全テンプレート共通で追加（同名の項目が既にあればそちらを優先）
   common: [
     { name: 'ブレーキパッド',     intervalMonths: null, intervalKm: 40000, notes: '残量は点検で確認。HV/EVは減りが遅め' },
-    { name: 'デフオイル',         intervalMonths: 24, intervalKm: 30000, notes: 'FF車はミッションと一体の場合あり', skipEngines: ['EV'] },
+    { name: 'デフオイル',         intervalMonths: 24, intervalKm: 30000, notes: 'FF車はミッションと一体の場合あり' },
+    { name: 'ミッションオイル',   intervalMonths: 36, intervalKm: 30000, notes: '' },
+    { name: 'スパークプラグ',     intervalMonths: 24, intervalKm: 30000, notes: '白金/イリジウムプラグは長寿命' },
     { name: 'ワイパーゴム',       intervalMonths: 12, intervalKm: null, notes: '' },
     { name: 'エバポレーター洗浄', intervalMonths: 12, intervalKm: null, notes: '' },
     { name: '夏タイヤ買替え',     intervalMonths: 60, intervalKm: null, notes: '溝が残っていてもゴムの劣化に注意' },
@@ -809,11 +809,12 @@ function saveCarModal() {
 }
 
 function templateItemsFor(engineType, missionType) {
+  const seen = new Set();
   return [
     ...(TEMPLATES.engine[engineType]  || []),
     ...(TEMPLATES.mission[missionType] || []),
-    ...TEMPLATES.common.filter(t => !t.skipEngines?.includes(engineType)),
-  ];
+    ...TEMPLATES.common,
+  ].filter(t => !seen.has(t.name) && seen.add(t.name));
 }
 
 function applyTemplate(carId, engineType, missionType) {
