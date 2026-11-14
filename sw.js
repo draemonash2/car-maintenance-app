@@ -1,5 +1,5 @@
 // Service Worker for カーメンテナンス
-const CACHE = 'car-maint-v17';
+const CACHE = 'car-maint-v18';
 const ASSETS = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 // インストール時にキャッシュ（ブラウザのHTTPキャッシュを経由せず最新を取得）

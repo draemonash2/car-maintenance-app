@@ -453,10 +453,13 @@
     <div class="modal-handle"></div>
     <div class="modal-header">
       <button class="modal-btn cancel" onclick="closeModal('modal-record')">キャンセル</button>
-      <span class="modal-title">メンテナンスを記録</span>
-      <button class="modal-btn save" onclick="saveRecordModal()">保存</button>
+      <span class="modal-title" id="mr-title">メンテナンスを記録</span>
+      <button class="modal-btn save" id="mr-save" onclick="saveRecordModal()">保存</button>
     </div>
     <div class="modal-body">
+      <div class="edit-banner" id="mr-edit-banner" style="display:none">
+        <span id="mr-edit-label"></span>
+      </div>
       <div class="form-group">
         <label class="form-label" for="mr-date">実施日 <span style="color:var(--danger)">*</span></label>
         <input class="form-control" id="mr-date" type="date">
@@ -1563,7 +1566,7 @@ function showDetailModal(carId, itemId) {
     <div class="record-item">
       <div class="record-date">
         <span>${fmtDate(r.date)}</span>
-        <button class="record-delete" onclick="delRec('${carId}','${itemId}','${r.id}')">削除</button>
+        <span><button class="record-edit" onclick="editRecord('${r.id}')">編集</button><button class="record-delete" onclick="delRec('${carId}','${itemId}','${r.id}')">削除</button></span>
       </div>
       <div class="record-info">${r.mileage.toLocaleString()}km${r.notes ? ` · ${esc(r.notes)}` : ''}</div>
     </div>`).join('')
@@ -1617,8 +1620,17 @@ function delRec(carId, itemId, recId) {
 }
 
 // ── 記録モーダル ──
+function setRecordEditMode(rec) {
+  modalCtx.editRecordId = rec ? rec.id : null;
+  document.getElementById('mr-title').textContent = rec ? '記録を編集' : 'メンテナンスを記録';
+  document.getElementById('mr-save').textContent = rec ? '更新' : '保存';
+  document.getElementById('mr-edit-banner').style.display = rec ? 'flex' : 'none';
+  if (rec) document.getElementById('mr-edit-label').textContent = `${fmtDate(rec.date)} の記録を編集中`;
+}
+
 function showRecordModal() {
   const car = state.cars.find(c => c.id === modalCtx.carId);
+  setRecordEditMode(null);
   document.getElementById('mr-date').value = todayStr();
   document.getElementById('mr-mileage').value = car?.totalMileage || '';
   document.getElementById('mr-notes').value = '';
@@ -1626,12 +1638,31 @@ function showRecordModal() {
   setTimeout(() => document.getElementById('mr-mileage').focus(), 350);
 }
 
+function editRecord(recId) {
+  const car = state.cars.find(c => c.id === modalCtx.carId);
+  const rec = car?.items.find(i => i.id === modalCtx.itemId)?.records.find(r => r.id === recId);
+  if (!rec) return;
+  setRecordEditMode(rec);
+  document.getElementById('mr-date').value = rec.date;
+  document.getElementById('mr-mileage').value = rec.mileage;
+  document.getElementById('mr-notes').value = rec.notes || '';
+  openModal('modal-record');
+}
+
 function saveRecordModal() {
   const date = document.getElementById('mr-date').value;
   const mileage = document.getElementById('mr-mileage').value;
   const notes = document.getElementById('mr-notes').value.trim();
   if (!date || !mileage) { alert('日付と走行距離を入力してください'); return; }
-  addRecord(modalCtx.carId, modalCtx.itemId, date, mileage, notes);
+  const car = state.cars.find(c => c.id === modalCtx.carId);
+  const rec = modalCtx.editRecordId && car?.items.find(i => i.id === modalCtx.itemId)?.records.find(r => r.id === modalCtx.editRecordId);
+  if (rec) {
+    Object.assign(rec, { date, mileage: +mileage, notes });
+    if (+mileage > car.totalMileage) car.totalMileage = +mileage;
+    save();
+  } else {
+    addRecord(modalCtx.carId, modalCtx.itemId, date, mileage, notes);
+  }
   closeModal('modal-record');
   showDetailModal(modalCtx.carId, modalCtx.itemId);
   render();
